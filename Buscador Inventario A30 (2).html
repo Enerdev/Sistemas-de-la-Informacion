@@ -1,0 +1,602 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Buscador Inventario A30</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: mostrador de trabajo — buscador + resultados a la izquierda, ficha del producto fija a la derecha (una columna en celular) */
+:root{
+  --bg:#f3f4f6; --surface:#ffffff; --sunken:#e9ecf1; --line:#d5dae3;
+  --fg:#1b2230; --muted:#5d6676; --accent:#1d4f91; --accent-fg:#ffffff;
+  --mark:#f5b301; --mark-soft:#fff4cc; --ok:#1d7a46; --ok-soft:#e3f4ea;
+  --warn:#9a5b00; --warn-soft:#fdf0d8; --bad:#b42318; --bad-soft:#fde8e6;
+  --cat-sat:62%; --cat-bg-l:90%; --cat-fg-l:28%; --cat-dot-l:48%;
+  --f-display:"Archivo","Arial Narrow",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12161d; --surface:#1a2029; --sunken:#222a35; --line:#2f3946;
+  --fg:#e6eaf0; --muted:#9aa4b3; --accent:#6aa3ec; --accent-fg:#0d1420;
+  --mark:#f5b301; --mark-soft:#3a3010; --ok:#5cc58a; --ok-soft:#173a27;
+  --warn:#e9b25a; --warn-soft:#3a2c12; --bad:#f08a80; --bad-soft:#3d1c1a; --cat-sat:40%; --cat-bg-l:21%; --cat-fg-l:80%; --cat-dot-l:62%; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12161d; --surface:#1a2029; --sunken:#222a35; --line:#2f3946;
+  --fg:#e6eaf0; --muted:#9aa4b3; --accent:#6aa3ec; --accent-fg:#0d1420;
+  --mark:#f5b301; --mark-soft:#3a3010; --ok:#5cc58a; --ok-soft:#173a27;
+  --warn:#e9b25a; --warn-soft:#3a2c12; --bad:#f08a80; --bad-soft:#3d1c1a; --cat-sat:40%; --cat-bg-l:21%; --cat-fg-l:80%; --cat-dot-l:62%; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-family:var(--f-display);font-weight:800;font-size:1.6rem;letter-spacing:-.01em;margin:0;text-wrap:balance}
+h1 small{display:block;font-family:var(--f-body);font-weight:500;font-size:.8rem;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+.source{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.source b{color:var(--fg)}
+button,.btn{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:7px 12px;font-weight:500}
+button:hover,.btn:hover{border-color:var(--accent)}
+button:focus-visible,.btn:focus-within,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+.btn input{position:absolute;opacity:0;width:1px;height:1px}
+.btn{position:relative;display:inline-flex;align-items:center}
+
+.searchbar{display:flex;flex-direction:column;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.searchbar label{font-size:.75rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+#q{width:100%;font:500 1.25rem var(--f-body);padding:12px 14px;border:2px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+#q:focus{border-color:var(--accent);outline:none}
+.hint{font-size:.8rem;color:var(--muted)}
+kbd{font-family:var(--f-mono);font-size:.75rem;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--sunken)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
+.chip{white-space:nowrap;font-size:.78rem;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--muted);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:820px){main{grid-template-columns:minmax(0,1fr)} .detail{position:static!important}}
+.results{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0}
+.rhead{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:.8rem;color:var(--muted)}
+.list{display:flex;flex-direction:column;max-height:62vh;overflow-y:auto}
+.item{display:grid;grid-template-columns:28px 52px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 14px 9px 10px;border-bottom:1px solid var(--line);cursor:pointer;text-align:left;border-left:4px solid hsl(var(--h,210) 65% var(--cat-dot-l))}
+.item:last-child{border-bottom:0}
+.item:hover{background:var(--sunken)}
+.item.sel{background:var(--mark-soft);box-shadow:inset 0 0 0 1px var(--mark)}
+.item.done .nm{color:var(--muted)}
+.code{font-family:var(--f-mono);font-weight:600;font-size:.95rem;font-variant-numeric:tabular-nums;color:var(--accent)}
+.nm{font-weight:500;min-width:0;overflow-wrap:anywhere}
+.nm mark{background:var(--mark-soft);color:inherit;box-shadow:inset 0 -2px 0 var(--mark);border-radius:2px}
+.meta{font-size:.75rem;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.meta .bc{font-family:var(--f-mono)}
+.pill{font-size:.68rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.warn{background:var(--warn-soft);color:var(--warn)} .pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.done{background:var(--sunken);color:var(--muted)}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+
+.detail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.detail h2{margin:0;font-family:var(--f-display);font-weight:600;font-size:1.15rem;line-height:1.25;overflow-wrap:anywhere}
+.eyebrow{font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.facts{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;font-size:.88rem}
+.facts dt{color:var(--muted)} .facts dd{margin:0;overflow-wrap:anywhere}
+.facts .mono{font-family:var(--f-mono)}
+.warnbox{font-size:.82rem;padding:8px 10px;border-radius:6px;background:var(--warn-soft);color:var(--warn)}
+.warnbox.bad{background:var(--bad-soft);color:var(--bad)}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:.75rem;font-weight:600;color:var(--muted);letter-spacing:.05em;text-transform:uppercase}
+.rowform{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.rowform .f-full{grid-column:1/-1}
+.rowform input{width:100%;font:500 .95rem var(--f-body);padding:8px 10px;border:2px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+.rowform input.mono,#f-code,#f-und,#f-pu,#f-pm{font-family:var(--f-mono);font-weight:600}
+.rowform input:focus{border-color:var(--accent);outline:none}
+.rowform label{text-transform:none!important;letter-spacing:0!important}
+.cols{display:flex;flex-wrap:wrap;gap:6px}
+.cols label{display:inline-flex;gap:5px;align-items:center;font-size:.82rem;padding:4px 9px;border:1px solid var(--line);border-radius:6px;cursor:pointer;background:var(--bg)}
+.preview{overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+.preview table{border-collapse:collapse;font-size:.8rem;min-width:100%}
+.preview th{background:var(--sunken);color:var(--muted);font-weight:600;text-align:left;padding:4px 8px;border-right:1px solid var(--line);white-space:nowrap}
+.preview td{padding:6px 8px;border-right:1px solid var(--line);border-top:1px solid var(--line);font-family:var(--f-mono);white-space:nowrap}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.actions .primary{flex:1 1 180px;padding:11px 14px;font-size:1rem}
+.mini{display:flex;flex-wrap:wrap;gap:6px}
+.mini button{font-size:.78rem;padding:5px 9px}
+.placeholder{color:var(--muted);font-size:.9rem;display:flex;flex-direction:column;gap:8px}
+.placeholder ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+#copyfallback{width:100%;font-family:var(--f-mono);font-size:.8rem;padding:6px;border:1px dashed var(--warn);background:var(--warn-soft);color:var(--fg)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-weight:500;box-shadow:0 6px 24px rgba(0,0,0,.25);z-index:20;max-width:calc(100% - 32px)}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.82rem}
+.cat{display:inline-flex;align-items:center;gap:6px;font-size:.7rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:4px;background:hsl(var(--h,210) var(--cat-sat) var(--cat-bg-l));color:hsl(var(--h,210) 60% var(--cat-fg-l));white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.cat::before,.chip.c::before{content:"";flex:none;width:8px;height:8px;border-radius:2px;background:hsl(var(--h,210) 70% var(--cat-dot-l))}
+.cat.big{font-size:.8rem;padding:4px 10px}
+.chip.c{display:inline-flex;align-items:center;gap:6px}
+.chip.c[aria-pressed="true"]{background:hsl(var(--h) var(--cat-sat) var(--cat-bg-l));color:hsl(var(--h) 60% var(--cat-fg-l));border-color:hsl(var(--h) 65% var(--cat-dot-l))}
+.pick{width:26px;height:26px;padding:0;border-radius:6px;display:grid;place-items:center;font:700 1rem var(--f-mono);color:var(--accent);border:2px solid var(--line);background:var(--surface)}
+.pick[aria-checked="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.rhead .tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.rhead button{font-size:.78rem;padding:4px 9px}
+.dhead{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.tray{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px;scroll-margin-top:12px}
+.trayhead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}
+.trayhead h3{margin:0;font-family:var(--f-display);font-size:1.15rem}
+.trayhead .tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.group{border:1px solid var(--line);border-left:5px solid hsl(var(--h) 65% var(--cat-dot-l));border-radius:8px;overflow:hidden}
+.ghead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;background:hsl(var(--h) var(--cat-sat) var(--cat-bg-l))}
+.ghead .cat{background:transparent;padding:0;font-size:.85rem}
+.ghead small{color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0}
+.tblwrap{overflow-x:auto}
+.tbl{border-collapse:collapse;width:100%;font-size:.82rem}
+.tbl th{text-align:left;font-weight:600;color:var(--muted);padding:6px 8px;background:var(--sunken);white-space:nowrap;border-bottom:1px solid var(--line)}
+.tbl td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl td.nm{min-width:220px;font-weight:500}
+.tbl input{width:100%;min-width:70px;font:600 .85rem var(--f-mono);padding:5px 7px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg)}
+.tbl input.wide{min-width:130px}
+.tbl input:focus{border-color:var(--accent);outline:none}
+.tbl .x{border:0;background:transparent;color:var(--muted);padding:2px 6px;font-size:1rem}
+.tbl .x:hover{color:var(--bad)}
+.tbl tr.copied td{opacity:.6}
+.codeswitch{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;background:var(--sunken);border:1px solid var(--line)}
+.codeswitch .lbl{font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;border-radius:0;padding:6px 14px;font-weight:600;background:transparent;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg)}
+.codeswitch .explain{font-size:.82rem;color:var(--muted);flex:1 1 260px}
+.codeswitch .explain b{color:var(--fg)}
+.nocode .codecol{display:none}
+.nocode .rowform{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:420px){.nocode .rowform{grid-template-columns:repeat(2,minmax(0,1fr))}}
+footer{font-size:.78rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:space-between}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><small>A30 Tools Center · Ferretería</small>Buscador del inventario antiguo</h1>
+    <div class="source">
+      <span id="srcinfo">Cargado: <b>inventario antiguo</b></span>
+      <label class="btn" for="file">Cargar otro Excel<input id="file" type="file" accept=".xlsx,.xls,.csv"></label>
+    </div>
+  </header>
+
+  <section class="searchbar" aria-label="Buscar producto">
+    <label for="q">Escribe el código, escanea el código de barras o escribe parte del nombre</label>
+    <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="Ej.: 517 · 7501206623527 · broca 3/4 bremen">
+    <div class="chips" id="cats" role="group" aria-label="Filtrar por categoría"></div>
+    <div class="hint"><kbd>↑</kbd> <kbd>↓</kbd> para elegir · <kbd>Enter</kbd> pasa a UND · <kbd>Tab</kbd> a los precios · otro <kbd>Enter</kbd> copia la fila · <kbd>Shift</kbd>+<kbd>Enter</kbd> o <b>+</b> lo agrega a la lista para copiar varios · <kbd>Esc</kbd> limpia la búsqueda. Las palabras pueden ir en cualquier orden y sin tildes.</div>
+    <div class="codeswitch" role="group" aria-labelledby="cslbl">
+      <span class="lbl" id="cslbl">Copiar «Codigo unico en la tienda»:</span>
+      <span class="seg"><button type="button" id="code-on" aria-pressed="true">SÍ</button><button type="button" id="code-off" aria-pressed="false">NO</button></span>
+      <span class="explain" id="csexplain"></span>
+    </div>
+  </section>
+
+  <main>
+    <section class="results" aria-label="Resultados">
+      <div class="rhead"><span id="count"></span><span class="tools"><span id="progress"></span><button type="button" id="addall" hidden>+ Agregar todos</button><button type="button" id="golist">Lista (0) ↓</button></span></div>
+      <div class="list" id="list" role="listbox" aria-label="Productos"></div>
+    </section>
+    <aside class="detail" id="detail" aria-live="polite"></aside>
+  </main>
+
+  <section class="tray" id="tray" aria-label="Lista para copiar"></section>
+
+  <footer>
+    <span id="foot"></span>
+    <span class="confirm" id="resetzone"><button id="reset" type="button">Borrar marcas de «ya pasado»</button></span>
+  </footer>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const OLD = [["ILUMINACIÓN",1,"FOCO LED FASHIONLIGHT DICROICO DE 6W CALIDO/BLANCO","1"],["ILUMINACIÓN",2,"FOCO SPIRAL LED 9W (MEDIANO TRANSPARENTE)","2"],["ILUMINACIÓN",3,"FOCO PORTIZA LED ESPIRAL DE 20W (TRANSPARENTE)","3"],["ILUMINACIÓN",4,"FOCO PHELIX LED DE 13W LUZ BLANCA","4"],["ILUMINACIÓN",5,"FOCO PHELIX LED DE 15W LUZ BLANCA","5"],["ILUMINACIÓN",6,"FOCO PHELIX LED DE 18W LUZ BLANCA","6"],["ILUMINACIÓN",7,"FOCO PHELIX LED DE 22W LUZ BLANCA","7"],["ILUMINACIÓN",8,"FOCO PHELIX LED DE 30W LUZ BLANCA","8"],["ILUMINACIÓN",9,"FOCO PHELIX LED DE 50W LUZ BLANCA","9"],["ILUMINACIÓN",10,"FOCO CUBULL 40W LUZ BLANCA","6910507655068"],["ILUMINACIÓN",11,"FOCO CUBULL 50W LUZ BLANCA","6910507655075"],["ILUMINACIÓN",12,"FOCO ASHUN LED DE 15W CALIDO","6906925458268"],["ILUMINACIÓN",13,"FOCO REMA LED 50W GRANDE USB CON CARGADOR","13"],["ILUMINACIÓN",14,"FOCO WELLMAX 6W LED SATURNO 3 EN 1","6975402616224"],["ILUMINACIÓN",15,"FOCO PHILIPS LUZ CLARA BOMBILLA DE 100W","7894400001162"],["ILUMINACIÓN",16,"FOCO ASHUN DE 10W CON SENSOR DE MOVIMIENTO","6906925458718"],["ILUMINACIÓN",17,"FOCO LAMPARA LED PHELIX DE 24W LUZ DIA (APLANADO)","17"],["ILUMINACIÓN",18,"FOCO WAILEC PLUS LED DE 30W (APLANADO PEQUEÑO)","18"],["ILUMINACIÓN",19,"FOCO WAILEC PLUS LED DE 40W (APLANADO MEDIANO)","19"],["ILUMINACIÓN",20,"FOCO PHELIX LED LED DE 7W LUZ DIA","20"],["ILUMINACIÓN",21,"FOCO PHELIX LED DE 12V -9W LUZ DIA","21"],["ILUMINACIÓN",22,"FOCO HOME DAA DE 36W LED (HELICE)","22"],["ILUMINACIÓN",23,"FOCO FASHIONLIGHT LED DE 8W CIRCULAR","23"],["ILUMINACIÓN",24,"FOCO FASHIONLIGHT LED DE 8W CUADRADO","24"],["ILUMINACIÓN",25,"REFLECTOR LED ALTALUZ DE 30W","6978000020307"],["ILUMINACIÓN",26,"FOCO CUBULL UFO LAPRA RGB MUSICAL DE 48W","26"],["ILUMINACIÓN",27,"LAMPARA LED ULIX GRANDE DE 50W","27"],["ILUMINACIÓN",28,"LAMPARA LED ULIX EXTRAGRANDE DE 60W","28"],["ILUMINACIÓN",29,"FOCO DIXON CAMPANA LED DECORATIVA 28W","qr tachadoy2qr"],["ILUMINACIÓN",30,"FOCO ALTALUZ LED AUTOBALASTRADA OSCURA DE 8W","6978001031085"],["ILUMINACIÓN",31,"PANEL LED CUBULL DE 12W CON SENSOR DE MOVIMIENTO","691156637297"],["ILUMINACIÓN",32,"REFLECTOR LED WELLMAX DE 50W","6975402613940"],["ILUMINACIÓN",33,"REFLECTOR SLIM LED PALUX DE 100W GRANDE","6976981794099"],["ILUMINACIÓN",34,"REFLECTOR PHELIX DE EMERGENCIA AUTOMATICO LED","34"],["ILUMINACIÓN",35,"FOCO HOME DAA LED DE 48W APLANADO GRANDE","35"],["ILUMINACIÓN",36,"FOCO HOME DAA LED DE 72W APLANADO EXTRAGRANDE","36"],["ILUMINACIÓN",37,"FOCO HOME DAA LED PANEL LAMP 18+6 GRANDE REDONDOS","37"],["ILUMINACIÓN",38,"PANEL LED SMD DOWNLIGHT 90% GRANDE","38"],["ILUMINACIÓN",39,"CUBULL REDONDO DDY-24B DE 24W GRANDE","6875542007619"],["ILUMINACIÓN",40,"PANEL LED WAILEC REDONDO GRANDE DE 32W","40"],["ILUMINACIÓN",41,"FOCO ZHAOMING DE 5W PEQUEÑO","41"],["ILUMINACIÓN",42,"FOCO VARILLA ALTALUZ LED DE 20 W DUST PROOF BRACKET","6978001544561"],["ILUMINACIÓN",43,"FOCO NOVALAMPS LED DE 4W LUZ DIA PEQUEÑOS REDONDOS","43"],["ILUMINACIÓN",44,"FOCO CUBULL PEQUEÑO LED DE 4W JZ-048","44"],["ILUMINACIÓN",45,"FOCO CUBULL LED DE 7W ENERGY 85% SAVING LUZ AMARILLA","6978529612070"],["ILUMINACIÓN",46,"FOCO CUBULL LED DE 7W ENERGY 85% DE 3 TIEMPOS SAVING","6988553424785"],["ILUMINACIÓN",47,"FOCO CUBULL LED DE 7W ENERGY 85% SAVING LUZ BLANCA","6988553428974"],["ILUMINACIÓN",48,"FOCO ILUMA LED PEQUEÑO DE 9W SPOT INTEGRADO NIQUEL DICROICO","2000003496952"],["ILUMINACIÓN",49,"PANEL LED CUBUL DE 18W CUADRADO","6405300206147"],["ILUMINACIÓN",50,"CUBULL FOCO FLEXIVE 3 DIMENSIONES DE 30W MODELO APL-GD-KD-6500K","6932251400541"],["ILUMINACIÓN",51,"PROYECTOR STARRY LIGHT SPACE ADVENTURE","51"],["ILUMINACIÓN",52,"LED CONTROLLER CON CONTROL RGB","6937920236445"],["ILUMINACIÓN",53,"FOCO CUBULL REDONDO DE 18W MODELO DDY-18B","6405300206291"],["ILUMINACIÓN",54,"CUBULL PANEL LED DE 18W MODELO DDY-18","6405300206246"],["ILUMINACIÓN",55,"FOCO CUBULL LED PLANO REDONDO PEQUEÑO DE 40W MODELO HX-C40","55"],["ILUMINACIÓN",56,"FOCO CUBULL LED PLANO REDONDO MEDIANO DE 50W MODELO HX-C50","56"],["ILUMINACIÓN",57,"FOCO CUBULL LED PLANO REDONDO GRANDE DE 60W MODELO HX-C60","57"],["ILUMINACIÓN",58,"FOCO PHELIX LED SERIE LAMPARA DE 36W GRANDE MODELO UFO-RH36W","58"],["ILUMINACIÓN",59,"LAMPARA LUXURY DESK MODELO 2008","59"],["ILUMINACIÓN",60,"FOCO GENOVA LIGHTING LUZ CALIDA DE 20W LED","60"],["ILUMINACIÓN",61,"FOCO NUEVASA LED BULB LIGHT 9W PEQUEÑO","6970271820499"],["ILUMINACIÓN",62,"FOCO FASHIONLIGHT LED DE 9W MODELO AC95-265V","62"],["ILUMINACIÓN",63,"PANEL REDONDO PLANO WELLMAX DE 18W LED LUZ CALIDA","6933506800673"],["ILUMINACIÓN",64,"PANEL REDONDO PLANO WELLMAX DE 12W LED LUZ CALIDA","6933506800659"],["ILUMINACIÓN",65,"FOCO LED LAMPARA ROTANTE PARTY LIGHT","64"],["ILUMINACIÓN",66,"REFLECTOR SLIM LED DE 50 W 72LEDS OP-50FL39-CW","65"],["ILUMINACIÓN",67,"WIFI PANORAMA CAMERA 360°","66"],["ILUMINACIÓN",68,"FOCO WELLMAX 30W LUZ CALIDA E27","6975402613988"],["ILUMINACIÓN",69,"CUBULL PANEL LED DE 18W CON SENSOR DE MOVIMIENTO DDY18SM","69115663728"],["ILUMINACIÓN",70,"LAMPARA HOME DAA LED 18+6 2400LM REDONDOS","70"],["ILUMINACIÓN",71,"FOCO CUBULL PEQUEÑO 3W LED MODELO JZ-003","6910507565664"],["ILUMINACIÓN",72,"FOCO SMARTCHARGE DE 9W INTELIGENT EMERGENCY BULB","72"],["ILUMINACIÓN",73,"LAMPARA COLGANTE MODERNA BAMBU MADERA/NEGRA","73"],["ILUMINACIÓN",74,"LAMPARA MODERNA TYNI SATURNO","74"],["ILUMINACIÓN",75,"LAMPARA MODERNA COLGANTE OVAL EGYP","75"],["ILUMINACIÓN",76,"LAMPARA MODERNA MINI PRISMA","76"],["ILUMINACIÓN",77,"LAMPARA COLGANTE MODERNA OVAL BLANCO","77"],["ILUMINACIÓN",78,"LAMPARA COLGANTE MODERNA CONICA BLANCA","78"],["ILUMINACIÓN",79,"CANDELABRO LLUVIA DE CASCADA","79"],["ILUMINACIÓN",80,"CANDELABRO AROS DE CRISTAL","80"],["ILUMINACIÓN",81,"CANDELABRO ESPIRAL DE ORO Y PLATA","81"],["ILUMINACIÓN",82,"CANDELABRO ANILLOS DEL UNIVERSO","82"],["ILUMINACIÓN",83,"CANDELABRO MODERNO LINEA CURVA UNICA","83"],["ILUMINACIÓN",84,"CANDELABRO ANILLOS DE SATURNO AROS DE CRISTAL","84"],["ILUMINACIÓN",85,"ACCESORIO PARA LAMPARA DICROICO ULIX 113MM PL 336 GD","85"],["ILUMINACIÓN",86,"ACCESORIO PARA LAMPARA DICROICO ULIX 113MM PL 336 GM","86"],["ILUMINACIÓN",87,"ACCESORIO PARA LAMPARA DICROICO ULIX 110MM PL 335 BN","87"],["ILUMINACIÓN",88,"ACCESORIO PARA LAMPARA DICROICO ULIX 135MM PL 327 BL","88"],["ILUMINACIÓN",89,"ACCESORIO PARA LAMPARA DICROICO WAILEC 110MM WH","89"],["ILUMINACIÓN",90,"LED LUMI ELECTRIC CINTA LED ULTRA BRILLANTE FLEXIBLE","90"],["ILUMINACIÓN",91,"LEDLUMI ELECTRIC CINTA COB 5M IP 40 COB 0 3000K","91"],["ILUMINACIÓN",92,"CINTA LED /240 ULTRA BRILLANTE LEDLUMI ELECTRIC 1800LUMENES IP 20 220V CL-33 8000K","92"],["ILUMINACIÓN",93,"CINTA LED ULTRABRILLANTE LEDLUMI ELECTRIC 240LED/M 220V IP20 CL-21 8000K","93"],["ILUMINACIÓN",94,"CINTA LED ULTRABRILLANTE LEDLUMI ELECTIC 120LED/M 1300 LUMENES 220V IP20 CL-18 8000K","94"],["ILUMINACIÓN",95,"CINTA COB ULTRABRILLANTE LEDLUMI ELECTRIC 320LED/M 1800 LUMENES 220V IP 40 COB-04 3000K","95"],["ILUMINACIÓN",96,"CINTA LED ULTRABRILLANTE LEDLUMI ELECTRIC 120L/M 1300 LUMENES 12V IP20 CL-04","96"],["ILUMINACIÓN",97,"LUCES DECORATIVAS 20 LED","97"],["ILUMINACIÓN",98,"CORTINA DE LUCES NAVIDEÑAS LEDS CON FIGURAS DE ESTRELLA OUT 31V ENERGY SAVING FASHION","6920259209167"],["ILUMINACIÓN",99,"LUZ LED IMPERMEABLE","6920235125269"],["HERRAMIENTAS",501,"LLAVE PARA CHUCK ASAKI DE 13 MM ASK-159002","2000300159024"],["HERRAMIENTAS",502,"LLAVE PARA CHUCK ALFA 13MM 1/2","502"],["HERRAMIENTAS",503,"HOJA P/CALADOR P / MADERA \"DELTA\" DE 5 PCS DT-TOO5","503"],["HERRAMIENTAS",504,"ALMOS BROCAS ESCALONADAS DE 3 PIEZAS 12MM, 20 MM, 32MM","6954124786354"],["HERRAMIENTAS",505,"ALMOS JUEGOS DE COULPER PARA COMPRENSORA DE 5PCS 2364","2000100031544"],["HERRAMIENTAS",506,"ALMOS PIEDRA SET P / TALADRO GRANDE DE1/4 \" DE 5 PCS 505","506"],["HERRAMIENTAS",508,"ALMOS EXTRACTOR DE TORNILLO PARAFUSOS ROSCA A LA IZQUIERDA DE 5 PCS DE 1/3\" A 3/4\" -891","6931598210011"],["HERRAMIENTAS",509,"LLAVE PARA AMOLADORA GENERICO","509"],["HERRAMIENTAS",510,"GONTI MINI HOJAS DE SIERRA DE 6\"","6954612500080"],["HERRAMIENTAS",511,"NICEIDEAL JUEGO DE LLAVES EXAGONALES DE 10 PCS LLAVERO 41123","7800678411237"],["HERRAMIENTAS",512,"BREMEN BROCA FORSTNER BIT DE 35MM","512"],["HERRAMIENTAS",513,"DESTORNILLADOR PUNTA CRUZ STANLEY","7800678412357"],["HERRAMIENTAS",514,"BOSCH BIT PORTA PUNTA DE IMPACTO STANDARD HEXAGONAL 1/4\" - BOSCH - GRUPO DJJ","3165140851114"],["HERRAMIENTAS",515,"A&SAN JOSE ADAPTADOR IMANTADO DE 5/16","515"],["HERRAMIENTAS",516,"A&SAN JOSE ADAPTADOR IMANTADO DE 3/8","516"],["HERRAMIENTAS",517,"(SIN NOMBRE EN EL ANTIGUO)","517"],["HERRAMIENTAS",518,"ALMOS DISCO DE LIJA DE PAPEL - PULIDOR DE 7\"","6931546180106"],["HERRAMIENTAS",519,"NORTON SAINT-GOBAIN DISCO DIAMANTADO SEGMENTADO 110X22,23MM CLASICO","7891792937604"],["HERRAMIENTAS",520,"ALMOS SET DE DESTORNILLADORES DE PRECISION DE 6 PIEZAS","520"],["HERRAMIENTAS",521,"DEWALT HP2 DISCO DE CORTE METAL 4 1/2\" DW84407","885911485531"],["HERRAMIENTAS",522,"ALMOS PROFESSIONAL (DISCO) DE LIJAS PARA PULIR 4.5\"","2000100011867"],["HERRAMIENTAS",523,"ALMOS PROFESSIONAL (DISCO) DE LIJA DE PAPEL 115MM 5PCS","6954612500080"],["HERRAMIENTAS",524,"GONTI DISCO DE LIJA DE PAPEL - PULIDOR 4 1/2\" 0009A","6931546152882"],["HERRAMIENTAS",525,"FANDELI DISCO DE CORTE DE METAL DE 4 1/2\" DCD-108","799592746501"],["HERRAMIENTAS",526,"UYUSTOOLS LIJA PAPEL SET DE 5 PCS 180 MM LJP 502","6931598223875"],["HERRAMIENTAS",527,"ALMOS PROFESSIONAL (DISCO) LIJAS DE PAPEL DE 5PCS DE 180 MM","6954612500080"],["HERRAMIENTAS",528,"UYUSTOOLS DISCO PULIR LANA CON CUERDA DE 4 1/2\" DP115L","6931598200043"],["HERRAMIENTAS",529,"UYUSTOOLS DISCO PULIR LANA CON CUERDA DE 7\" DP180L","6931598234659"],["HERRAMIENTAS",530,"UYUSTOOLS JUEGO DE 5 DISCOS DE LIJA CON VELCRO DE 7\" LJP502","6931598223875"],["HERRAMIENTAS",531,"UYUSTOOLS DISCO DIAMOND 4 1/2\" DDU 115 PARA CONCRETO","6931598201484"],["HERRAMIENTAS",532,"UYUSTOOLS DISCO DIAMOND DE 6\" DDU 150H PARA CERAMICA Y AZULEJOS","6931598246768"],["HERRAMIENTAS",533,"JUEGO DE LLAVES TORX EN CAJA DE ACERO TIPO LLAVERO MARCA UYUSTOOLS SET DE 8 PIEZAS MODELO YXS801","6931598217485"],["HERRAMIENTAS",534,"JUEGO DE BROCAS PILOTO AVELLANADORAS SET DE 4 PIEZAS MEDIDAS 6#, 8#, 10# Y 12# MARCA KAMASA PROFESSIONAL MODELO KM-1701","200100017012"],["HERRAMIENTAS",535,"JUEGO DE LLAVES ALLEN CORTAS HEXAGONALES LINEA DELUXE MARCA UYUSTOOLS SET DE 9 PIEZAS MODELO YAA901","693159821791"],["HERRAMIENTAS",536,"BROCA PLANA PARA MADERA Y LAMINADOS MEDIDA 1 PULGADA 25 MM MARCA TRUPER CODIGO 11384","7501206623527"],["HERRAMIENTAS",537,"JUEGO DE BROCAS ESCALONADAS PARA METAL MARCA UYUSTOOLS SET DE 3 PIEZAS MEDIDAS 4–12 MM, 20 MM Y 32 MM MODELO BCE3SU","6931598240698"],["HERRAMIENTAS",538,"JUEGO DE PIEDRAS ABRASIVAS PARA TALADRO TAMAÑO GRANDE VASTAGO 1/4 PULGADA MARCA UYUSTOOLS SET DE 5 PIEZAS MODELO PDB501","6931598201736"],["HERRAMIENTAS",539,"JUEGO DE PIEDRAS ABRASIVAS PARA TALADRO TAMAÑO CHICO VASTAGO 3 MM MARCA UYUSTOOLS SET DE 5 PIEZAS MODELO PDB502","6931598201743"],["HERRAMIENTAS",540,"STANLEY PRO ALICATE PRO DE CORTE DE ALTO PODER 8\"","747752846226"],["HERRAMIENTAS",541,"STANLEY PRO ALICATE PRO DE PUNTA LARGA 8\"","747752846257"],["HERRAMIENTAS",542,"STANLEY PRO ALICATE PRO DE PUNTA LARGA 6\"","747752840538"],["HERRAMIENTAS",543,"STANLEY PRO ALICATE PRO DE CORTE DIAGONAL 6\"","747752840545"],["HERRAMIENTAS",544,"STANLEY ALICATE PELA CABLE AUTO AJUSTABLE 8\"","747752962308"],["HERRAMIENTAS",545,"PROFIELD PELA CABLE P16863 DE 7\"","7750621168636"],["HERRAMIENTAS",546,"GONTI PROFESSIONAL ALICATE PARA ELECTRICISTA 7.3\"","6905651510509"],["HERRAMIENTAS",547,"ALICATE DE ENGASTE GENERICO 3 EN 1 MODULAR HT-315","546"],["HERRAMIENTAS",548,"ALMOS PROFESSIONAL ALICATE PELACABLE 6\"","6900005600288"],["HERRAMIENTAS",549,"ALMOS PROFESSIONAL ALICATE COAXIAL CONNECTOR CRIMPING DE 5.6\"","2000100045367"],["HERRAMIENTAS",550,"ALMOS PROFESSIONAL PELACABLES PARA CABLE COAXIAL ROTATIVO DE 3.9\"","2000100013656"],["HERRAMIENTAS",551,"INGCO ALICATE DE PUNTA DE 6\"","6925582123203"],["HERRAMIENTAS",552,"NICE IDEAL ALICATE PUNTA CURVA MANGO PLASTIFICADO DE 6\"","7800678411404"],["HERRAMIENTAS",553,"NICE IDEAL PINZA DE RESORTE GRANDE DE 6\"","7800678413897"],["HERRAMIENTAS",554,"NICE IDEAL PINZA DE RESORTE 2 PIEZAS DE 3\"","7800678413873"],["HERRAMIENTAS",555,"NICE IDEAL PINZA METAL DE 4 PCS 6\" + 3 DE 2\"","7800678413910"],["HERRAMIENTAS",556,"NICEIDEAL LLAVE MIXTA DE TRIQUETE 9 MM REF:41096","7800678410964"],["HERRAMIENTAS",557,"NICEIDEAL LLAVE MIXTA DE TRIQUETE 10 MM REF:1097","7800678410971"],["HERRAMIENTAS",558,"NICEIDEAL LLAVE MIXTA DE TRIQUETE 11 MM REF:41098","7800678410988"],["HERRAMIENTAS",559,"NICEIDEAL LLAVE MIXTA DE TRIQUETE 13 MM REF:41100","7800678411008"],["HERRAMIENTAS",560,"NICEIDEAL LLAVE MIXTA DE TRIQUETE 14 MM REF:41101","7800678411015"],["HERRAMIENTAS",561,"NICEIDEAL LLAVE MIXTA DE TRIQUETE 15 MM REF:41102","7800678411022"],["HERRAMIENTAS",562,"NICEIDEAL LLAVE MIXTA DE TRIQUETE 17 MM REF:41103","7800678411039"],["HERRAMIENTAS",563,"STANLEY LLAVE MIXTA 10MM 86-855","563"],["HERRAMIENTAS",564,"STANLEY LLAVE MIXTA 12MM 86-857","564"],["HERRAMIENTAS",565,"STANLEY LLAVE MIXTA 13MM 86-858","565"],["HERRAMIENTAS",566,"STANLEY LLAVE MIXTA 14MM 86-859","566"],["HERRAMIENTAS",567,"STANLEY LLAVE MIXTA 15MM 86-860","567"],["HERRAMIENTAS",568,"STANLEY LLAVE MIXTA 16MM 86-861","568"],["HERRAMIENTAS",569,"STANLEY LLAVE MIXTA 18MM 86-863","569"],["HERRAMIENTAS",570,"STANLEY LLAVE MIXTA 19MM 86-864","570"],["HERRAMIENTAS",571,"STANLEY LLAVE MIXTA 20MM 86-865","571"],["HERRAMIENTAS",572,"STANLEY LLAVE MIXTA 21MM 86-866","572"],["HERRAMIENTAS",573,"STANLEY LLAVE MIXTA 22MM 86-867","573"],["HERRAMIENTAS",574,"STANLEY LLAVE MIXTA 23MM 86-868","574"],["HERRAMIENTAS",575,"STANLEY LLAVE MIXTA 24MM 86-869","575"],["HERRAMIENTAS",576,"STANLEY LLAVE MIXTA 25MM 86-625","576"],["HERRAMIENTAS",577,"STANLEY LLAVE MIXTA 26MM 86-626","577"],["HERRAMIENTAS",578,"STANLEY LLAVE MIXTA 27MM 86-890","578"],["HERRAMIENTAS",579,"STANLEY LLAVE MIXTA 28MM 86-628","579"],["HERRAMIENTAS",580,"STANLEY LLAVE MIXTA 29MM 86-629","580"],["HERRAMIENTAS",581,"STANLEY LLAVE MIXTA 30MM 86-630","581"],["HERRAMIENTAS",582,"STANLEY LLAVE MIXTA 32MM 86-871","582"],["HERRAMIENTAS",583,"STANLEY LLAVE MIXTA 36MM 89-721","583"],["HERRAMIENTAS",584,"STANLEY DADO HEXAGONAL 1/2\" X 8MM 86-508","7899182781820"],["HERRAMIENTAS",585,"STANLEY DADO HEXAGONAL 1/2\" X 10MM 86-510","7899182781844"],["HERRAMIENTAS",586,"STANLEY DADO HEXAGONAL 1/2\" X 13MM 86-513","7899182781875"],["HERRAMIENTAS",587,"STANLEY DADO HEXAGONAL 1/2\" X 15MM 86-515","7899182781899"],["HERRAMIENTAS",588,"STANLEY DADO HEXAGONAL 1/2\" X 19MM 88-741","7899182782810"],["HERRAMIENTAS",589,"STANLEY DADO PUNTA MULTIESTRIAS 1/2\" M 8 X 100MM 92-539","76174925395"],["HERRAMIENTAS",590,"STANLEY DADO PUNTA MULTIESTRIAS 1/2\" M10 X 75MM 92-533","76174925333"],["HERRAMIENTAS",591,"STANLEY DADO PUNTA MULTIESTRIAS 1/2\" M12 X 100MM 92-542","76174925425"],["HERRAMIENTAS",592,"STANLEY DADO PUNTA ALLEN LARGO 1/2\" X 5MM 89-200","7899182788591"],["HERRAMIENTAS",593,"REGLA DE ESQUINA (ESCUADRA) DE ALEACIÓN DE ALUMINIO CON NIVEL INCLUIDO NICEIDEAL 200MM REF: 41638","7800678416386"],["HERRAMIENTAS",594,"STANLEY DADO PUNTA ALLEN LARGO 1/2\" X 7MM 89-202","7899182788614"],["HERRAMIENTAS",595,"STANLEY DADO PUNTA ALLEN LARGO 1/2\" X 8MM 89-203","7899182788621"],["HERRAMIENTAS",596,"STANLEY DADO PUNTA ALLEN LARGO 1/2\" X 10MM 89-204","7899182788638"],["HERRAMIENTAS",597,"STANLEY DADO PUNTA ALLEN LARGO 1/2\" X 12MM 89-205","7899182788645"],["HERRAMIENTAS",598,"STANLEY MANGO RATCHET P/DADO 1/2\" X 10\" 86-404","3253564864046"],["HERRAMIENTAS",599,"STANLEY JUNTA UNIVERSAL ARTICULADA P/DADO 1/2\" X 2-3/4\" 86-411","3253564864114"],["HERRAMIENTAS",600,"FERRAWYY LLAVE MIXTA 6 MM","600"],["HERRAMIENTAS",601,"FERRAWYY LLAVE MIXTA 7 MM","601"],["HERRAMIENTAS",602,"FERRAWYY LLAVE MIXTA 9 MM","602"],["HERRAMIENTAS",603,"FERRAWYY LLAVE MIXTA 10 MM","603"],["HERRAMIENTAS",604,"FERRAWYY LLAVE MIXTA 11 MM","604"],["HERRAMIENTAS",605,"FERRAWYY LLAVE MIXTA 12 MM","605"],["HERRAMIENTAS",606,"FERRAWYY LLAVE MIXTA 14 MM","606"],["HERRAMIENTAS",607,"FERRAWYY LLAVE MIXTA 19 MM","607"],["HERRAMIENTAS",608,"FERRAWYY LLAVE MIXTA 21 MM","608"],["HERRAMIENTAS",609,"FERRAWYY LLAVE MIXTA 22 MM","609"],["HERRAMIENTAS",610,"ALMOS LLAVE MIXTA 18 MM","610"],["HERRAMIENTAS",611,"ALMOS LLAVE MIXTA 19 MM","611"],["HERRAMIENTAS",612,"ALMOS LLAVE MIXTA 20 MM","612"],["HERRAMIENTAS",613,"ALMOS LLAVE MIXTA 21 MM","613"],["HERRAMIENTAS",614,"ALMOS LLAVE MIXTA 22 MM","614"],["HERRAMIENTAS",615,"ALMOS LLAVE MIXTA 23 MM","615"],["HERRAMIENTAS",616,"ALMOS LLAVE MIXTA 24 MM","616"],["HERRAMIENTAS",617,"EPICA STAR LLAVE DE TUBO (STILLSON) 8\"/200MM REF:EP-50391","6971243795524"],["HERRAMIENTAS",618,"EPICA STAR LLAVE DE TUBO (STILLSON) 10\" REF:EP-50392","6971243795531"],["HERRAMIENTAS",619,"ALMOS LLAVE DE TUBO (STILLSON) 24\"","3900003002824"],["HERRAMIENTAS",620,"NORSTAR LLAVE FRANCESA (LLAVE AJUSTABLE) 6\" COD:FSDO6","2881680011498"],["HERRAMIENTAS",621,"NORSTAR LLAVE FRANCESA (LLAVE AJUSTABLE) 12\" COD:FSDO12","2881680011528"],["HERRAMIENTAS",622,"JUEGO ESCUADRA MAGNETICA P/SOLDAR X6 CASCO REF:H23987","001960239875"],["HERRAMIENTAS",623,"ESCUADRA MAGNETICA WELDING HOLDER MARCA XIANFENG REF:XF2001 DE 5\"","623"],["HERRAMIENTAS",624,"EXTENSION PARA DADOS MARCA DENACET DE 3 PCS EXT-100","2000200000433"],["HERRAMIENTAS",625,"EXTENSION PARA DADOS DE 3 PCS DE 3\",5\",10\" MARCA ALMOS PROFESSIONAL","7899956601545"],["HERRAMIENTAS",626,"TIJERA P/HOJALATERO 12\" C&A","626"],["HERRAMIENTAS",627,"TIJERA PARA LATA ALMOS DE 10\"","6900005781109"],["HERRAMIENTAS",628,"LLAVES UNIVERSALES MARCA ALMOS 2PCS 32MM","628"],["HERRAMIENTAS",629,"ALMOS PROFESSIONAL ALICATES PARA BOMBAS DE AGUA DE LIBERACIÓN RÁPIDA DE 12\" AP12","6958477424338"],["HERRAMIENTAS",630,"UYUSTOOLS ALICATE UNIVERSAL 8\" ALU8D15 1 PC","6931598218093"],["HERRAMIENTAS",631,"REMACHADORA ALUMINIO 10.5PULG 2.4/3.2/4.0/4.8MM REM.AL INDUSTRIAL THT32105 TOTAL","6941639842422"],["HERRAMIENTAS",632,"ESCUADRA FALSA TRUPER DE 8\"","7501206630471"],["HERRAMIENTAS",633,"KIT DE BROCAS PARA CONCRETO MASONRY MARCA BREMEN DE 5 PCS","633"],["HERRAMIENTAS",634,"KIT DE BROCAS PARA MADERA MASONRY MARCA BREMEN DE 5 PCS","634"],["HERRAMIENTAS",635,"BROCA 7/8\" (22 MM) TIPO PALETA PLANA PARA MADERA 1PC BREMEN","635"],["HERRAMIENTAS",636,"BROCA 3/4\" (19,05 MM) TIPO PALETA PLANA PARA MADERA 1PC BREMEN","636"],["HERRAMIENTAS",637,"BROCA 1\" (25,4 MM) TIPO PALETA PLANA PARA MADERA 1PC BREMEN","637"],["HERRAMIENTAS",638,"BROCAS PIEDRA/CONCRETO 1/2\" SCHUBERT","638"],["HERRAMIENTAS",639,"BROCA DE MADERA MARCA NICEIDEAL REF:41278 14MM DIAMETRO 150MM","7800678412784"],["HERRAMIENTAS",640,"BROCAS PARA METAL BREMEN 3/8 DIN 338(C/U) 5PCS","640"],["HERRAMIENTAS",641,"BROCAS PARA METAL BREMEN 3/16\" DIN 338 (C/U) 10 PCS","641"],["HERRAMIENTAS",642,"BROCAS PARA METAL BREMEN 11/64 DIN 338 (C/U) 10 PCS","642"],["HERRAMIENTAS",643,"BROCAS PARA METAL BREMEN 5/32\" DIN 338 (C/U) 10 PCS","643"],["HERRAMIENTAS",644,"BROCAS POR UNIDAD BREMEN CONCRETO DE 1/4\" X 100MM","644"],["HERRAMIENTAS",645,"BROCAS POR UNIDAD BREMEN CONCRETO DE 3/8\" X 120MM","645"],["HERRAMIENTAS",646,"BROCAS POR UNIDAD BREMEN CONCRETO DE 5/16\" X 120MM","646"],["HERRAMIENTAS",647,"PORTAPUNTAS DE IMPACTO DE LIBERACION RAPIDA BOSCH PRO LONGITUD 60 MM ENCASTRE 1/4 PULGADA MATERIAL HSS VASTAGO HEXAGONAL CODIGO 2608522320","3165140851107"],["HERRAMIENTAS",648,"MINI SET DE DESARMADORES CON MANGO SISTEMA MULTIPUNTAS 30 EN 1 MARCA ASAKI MODELO ASK-06101","2000300061013"],["HERRAMIENTAS",649,"CAUTÍN PARA SOLDAR PROFESIONAL TOOLMAX POTENCIA 30 W / 70 W MODELO TMZ-151","0400000458"],["HERRAMIENTAS",650,"CAUTÍN PARA SOLDAR ALMOS PROFESSIONAL POTENCIA 30 W / 70 W MODELO P04","650"],["HERRAMIENTAS",651,"FLEXÓMETRO DE GOMA CON 3 FRENOS MEDIDA 7.5 M X 25 MM MARCA UYUSTOOLS MODELO FLG9075","6931598246225"],["HERRAMIENTAS",652,"PROBADOR DE VOLTAJE O DESTORNILLADOR BUSCAPOLOS TWIN RANGO 100–500 V AC","4711815661190"],["HERRAMIENTAS",653,"PROBADOR DE VOLTAJE O DESTORNILLADOR BUSCAPOLOS MARCA TOTAL MEDIDA 4 X 190 MM RANGO 100–500 V AC MODELO THT291908","6925582180466"],["HERRAMIENTAS",654,"FLEXÓMETRO DE GOMA CON 3 FRENOS MEDIDA 3 M X 16 MM MARCA UYUSTOOLS MODELO FLG9316","6931598246195"],["HERRAMIENTAS",655,"FLEXÓMETRO DE GOMA CON 3 FRENOS MEDIDA 10 M X 25 MM MARCA UYUSTOOLS MODELO FLG9010","6931598246232"],["HERRAMIENTAS",656,"TIRALÍNEA DE METAL MARCA UYUSTOOLS CUERDA DE 30 M MATERIAL ALUMINIO MODELO TZM030","6931598201026"],["HERRAMIENTAS",657,"NIVEL DE MANO ALMOS MEDIDA 9 PULGADAS MODELO MA-N09","6968680690635"],["HERRAMIENTAS",658,"DISCO DIAMOND CONTINUO DE CORTE PARA CERÁMICA MEDIDA 7-1/4 PULGADAS 180 MM MARCA UYUSTOOLS MODELO DDU18H","6931598215474"],["HERRAMIENTAS",659,"DISCO DIAMANTADO TURBO MEDIDA 9 PULGADAS 230 MM MARCA ALMOS MODELO 231D","6931588162313"],["HERRAMIENTAS",660,"DISCO PARA MADERA MEDIDA 4-1/2 PULGADAS 24 DIENTES MARCA UYUSTOOLS MODELO DMA116","6931598201927"],["HERRAMIENTAS",661,"DISCO DE CORTE PARA MADERA MEDIDA 7-1/4 PULGADAS MARCA UYUSTOOLS MODELO DMD724","6931598201958"],["HERRAMIENTAS",662,"DISCO DIAMANTADO PARA PULIR HORMIGÓN MEDIDA 4-1/2 PULGADAS DOBLE MARCA UYUSTOOLS MODELO DDP115D","6931598213098"],["HERRAMIENTAS",663,"DISCO DIAMANTADO PARA PULIR MARCA ALMOS MEDIDA 7 PULGADAS","6931588221188"],["HERRAMIENTAS",664,"DISCO DE CORTE PARA ACERO MEDIDA 356 X 25.40 MM MARCA NORTON","7895316283369"],["HERRAMIENTAS",665,"DISCO DE CORTE STANDARD FOR METAL MEDIDA 180 X 1.6 MM MARCA BOSCH","4059952634265"],["HERRAMIENTAS",666,"DISCO DE CORTE ACOPLADO PRO METAL MARCA BOSCH PROFESSIONAL","316514601429"],["HERRAMIENTAS",668,"EPICA STAR ESPÁTULA DE CONSTRUCCIÓN160MM EP-30126","6971243792301"],["HERRAMIENTAS",669,"INGCO ESPATULA DE CONSTRUCCIÓN DE 10\" HPUT78250","6941640136213"],["HERRAMIENTAS",670,"RATCHET DE 1/2″ ESTÁNDAR ENCAUCHADO G17 UYUSTOOLS","4710474072231"],["HERRAMIENTAS",671,"BARRA FUERZA CORREDIZA 1/2\" UYUSTOOLS BRF001","4710474070305"],["HERRAMIENTAS",672,"ENGRAPADORA DE USO LIVIANO METÁLICA MARCA CASCO","0001960239011"],["HERRAMIENTAS",673,"WINCHA GRIPPER CONTRA IMPACTOS 5M TRUPER 14578","7501206673324"],["HERRAMIENTAS",674,"PUNTAS DE DESTORNILLADOR SET 30 PIEZAS EPICA STAR EP-60649","6931998408728"],["HERRAMIENTAS",675,"PUNTA DE TALADRO PARA AGUJERO 30-120 MM REF 41283 MARCA NICE IDEAL","7800678412838"],["HERRAMIENTAS",676,"EPICA STAR BOARD SAW EP 30673 10\"","6931998416915"],["HERRAMIENTAS",677,"EPICA STAR F-CLAMP EP-50319 SARGENTO DE APRIETE RÁPIDO O PRENSA RÁPIDA","6931998400968"],["HERRAMIENTAS",678,"ALICATES PARA OJALES MARCA NICEIDEAL REF: 41150","7800678411503"],["HERRAMIENTAS",679,"TIJERA PARA TRASQUILAR MARCA ALMOS DE 13\" 1013A","7899956601545"],["HERRAMIENTAS",680,"TIJERA PARA TRASQUILAR MARCA ALMOS DE 10\" 1010A","7212454232200"],["HERRAMIENTAS",681,"CUCHILLA DE CORTE STANLEY RETRÁCTIL 10-175","076174101751"],["HERRAMIENTAS",682,"DESTORNILLADOR PLANO Y ESTRELLA SET DE 2PCS MARCA INCE IDEAL REF:41216","7800678412166"],["HERRAMIENTAS",683,"DESTORNILLADOR NICEIDEAL MAGNETICO 3MM REF:41162 CABEZA CRUZ","7800678411626"],["HERRAMIENTAS",684,"DESTORNILLADOR NICEIDEAL MAGNETICO 3MM REF:41201 CABEZA PLANO","7800678412012"],["HERRAMIENTAS",685,"DESTORNILLADOR NICEIDEAL MAGNETICO 3MM REF:41181 CABEZA PLANO","7800678411817"],["HERRAMIENTAS",686,"JUEGO DE DESTORNILLADOR PUNTO CRUZ Y PLANO 2PCS 2.5 MM REF:41218","7800678412180"],["HERRAMIENTAS",687,"ALICATE UNIVERSAL DE 8\" FORTUN ISO9002","687"],["HERRAMIENTAS",688,"LLAVE PARA RUEDAS DE COCHE MARCA ALMOS","688"],["HERRAMIENTAS",689,"PALANCA EN L – RCH MAQUINARIAS L 1/4 CHROME VANADIUM","689"],["HERRAMIENTAS",690,"ESPATULA M/MADERA KAMAZAKI 2\" KMZ-166","690"],["HERRAMIENTAS",691,"ESPATULA M/MADERA MARCA ALMOS PROFESSIONAL AL-EM30 3\"","6938951200306"],["HERRAMIENTAS",692,"PINCELES DE CERDA MARCA C&A #12 COD 140561","692"],["HERRAMIENTAS",693,"SUPRESOR PICOS DE 6 ENCHUFES 3MTS A0A/220V CON MEDIDOR DE ENERGIA MARCA ULTRA ELECTRIC","693"],["HERRAMIENTAS",694,"BROCAS PARA MADERA DE 3 PCS 3/8\", 1/2\", 5/8\" ALMOS PROFESSIONAL MA-6530","6931598202368"],["HERRAMIENTAS",695,"SET DE 40 PCS COMBINATION SOCKET WRENCH SET 1/4\" Y 1/8\" AL-D40 METRIC SIZE COMBINATION","695"],["HERRAMIENTAS",696,"ARCO DE CIERRA TAMAÑO PEQUEÑO MARCA ALMOS","696"],["HERRAMIENTAS",697,"EPICA STAR JUEGO DE LLAVES AJUSTABLES MULTIUSO UNIVERSAL 9-32MM EP- 60164","6971243793780"],["HERRAMIENTAS",698,"ANEVA DESING BRASIL 12 PCS COMBINATION SOCKET WRENCH SET NA-12P","698"],["HERRAMIENTAS",699,"NIVEL DE ALUMINIO CON IMÁN NICEIDEAL REF:41574","7800678415747"],["HERRAMIENTAS",700,"NIVEL DE ALUMINIO AMARILLO DE 24´´/60CM STANLEY","076174420746"],["HERRAMIENTAS",701,"CINTA METRICA 5M/16´ STANLEY REF: 30-716","076174442380"],["HERRAMIENTAS",702,"CINTA METRICA 8M/26´ STANLEY REF: 30-726","076174442397"],["HERRAMIENTAS",703,"DESTORNILLADOR PUNTA CRUZ 6´´ STANLEY","88317001091"],["HERRAMIENTAS",704,"DESTORNILLADOR PLANO 6´´ STANLEY","704"],["HERRAMIENTAS",705,"DESTORNILLADOR PUNTA 4´´CRUZ STANLEY","705"],["HERRAMIENTAS",706,"DESTORNILLADOR PUNTA PLANA DE CARRACA CON MANGO DE PIVOT GRIP GENERICO","706"],["HERRAMIENTAS",707,"DESTORNILLADOR PUNTA CRUZ 6X35MM GENERICO","707"],["HERRAMIENTAS",708,"DESTORNILLADOR PUNTA MIXTA CRUZ Y PLANA GENERICO GRUESO","708"],["HERRAMIENTAS",709,"DESTORNILLADOR PUNTAS INTERCAMBIABLES ALMOS PROFESSIONAL","709"],["HERRAMIENTAS",710,"DESTORNILLADOR PUNTA MIXTA CRUZ Y PLANA GENERICO GRUESO ALMOS","710"],["HERRAMIENTAS",711,"DESTORNILLADOR PUNTA MIXTA CRUZ Y PLANA GENERICO DELGADO ALMOS","711"],["HERRAMIENTAS",712,"LIMA TRIANGULA KAMASA PROFESSIONAL REF: KM527","2000100005279"],["HERRAMIENTAS",713,"JUEGO DE SIERRAS COPAS PARA MADERA 7PCS REF OJ-820 ALMOS PROFESSIONAL","6900001600077"],["HERRAMIENTAS",714,"JUEGO DE SIERRAS COPAS PARA MADERA 6PCS REF: 816 ALMOS PROFESSIONAL","2000100010587"],["HERRAMIENTAS",715,"PORTASILICONA DE 9\" MARCA UYUSTOOLS PTC009","6931598200982"],["HERRAMIENTAS",716,"PISTOLA MANUAL DE CALAFATEO MARCA SIKA PARA SILICONA","7756962853187"],["HERRAMIENTAS",717,"LIMA REDONDA 6 BASTARDAS 6´´ REF: DT-320 DELTA PRO","717"],["HERRAMIENTAS",718,"LIMA REDONDA 8´´ ALMOS PROFESSIONAL","6598784561069"],["HERRAMIENTAS",719,"LIMA PARA METAL 3PCS ALMOS RE: OJ-143","719"],["HERRAMIENTAS",720,"FORMÓN 14MM NICEIDEAL REF: 41373","7800678413736"],["HERRAMIENTAS",721,"ESCOFINA 8´´ NIDEIDEAL REF: 41363","7800678413637"],["HERRAMIENTAS",722,"JUEGO DE SIERRAS COPA PARA MADERA 3PCS FEITENG 2 1/8´´","6945184478334"],["HERRAMIENTAS",723,"JUEGO DE LIMAS PARA MADERA 3 PCS GENERICO 8´´","723"],["HERRAMIENTAS",724,"JUEGO DE SIERRAS COPA PARA MADERA 6PCS FEITENG 1/4´´","8681457302767"],["HERRAMIENTAS",725,"FORMÓN 1´´ GROSOR ALMOS REF: -0035A","698748158499"],["HERRAMIENTAS",726,"ESPATULA 101MM 4´´ STANLEY REF: 28-084S","747752280846"],["HERRAMIENTAS",727,"FORMON GENERICO 3/4´´ LM","6920210913751"],["HERRAMIENTAS",728,"ARCO DE SIERRA FIJO BASICO 12´´ 305MM 4´´ DE INTERIOR STANLEY","747752202060"],["HERRAMIENTAS",729,"KIT DE SIERRA DE CORONA DE 11 PCS","0060133130005"],["HERRAMIENTAS",730,"ARCO DE SIERRA LATIN AMERICAN","730"],["HERRAMIENTAS",731,"SET DE 6 DESTORNILLADORES PUNTA PLANA Y CRUZ 4MMX75MM, 6MMX100MM , 8MMX150MM KEYUSHUN","731"],["HERRAMIENTAS",732,"JUEGO DE DESARMADOR GOLPE MANGO 6PZA ASAKI RF: ASK-06051","2000300360511"],["HERRAMIENTAS",733,"SERRUCHO MANGO MADERA 20´´ 508MM C&A","733"],["HERRAMIENTAS",734,"SIERRA ESTANDAR BELLOTA 24´´ DENTADO UNIVERSAL PARA CORTE DE MADERA SECA","7702956204510"],["HERRAMIENTAS",735,"BROCHA DE NYLON MANGO MADERA C&A 5´´","735"],["HERRAMIENTAS",736,"FROTACHO DE PLASTICO HENPLAST 30X6.5CM","736"],["HERRAMIENTAS",737,"PLANCHA FROTACHO PARA EMPASTAR ALUMINIO MANGO DE GOMA ALMOS PROFESSIONAL 280X125MM","7753330060253"],["HERRAMIENTAS",738,"PLANCHA FROTACHO DENTADA RASPIN ALUMINIO MANGO DE GOMA GONTI PROFESSIONAL 280X125MM","77533300600246"],["HERRAMIENTAS",739,"PLANCHA FROTACHO DE PLASTICO ESPONJA ALMOS PROFESSIONAL 10 1/2\"","739"],["HERRAMIENTAS",740,"PLANCHA FROTACHO DE PLASTICO ESPONJA ALMOS PROFESSIONAL 6\"","740"],["HERRAMIENTAS",741,"TABLA LIJADORA DE MADERA PARA EXTENSIONES ALMOS PROFESSIONAL","741"],["HERRAMIENTAS",742,"PLANCHA NORMAL DE LAMINA FLEXIBLE MANGO DE GOMA ALMOS PROFESSIONAL 500X130MM","7753330060116"],["HERRAMIENTAS",743,"PLANCHA PARA EMPASTAR DENTADA RASPINDE LAMINA FLEXIBLE MANGO DE GOMA ALMOS PROFESSIONAL 500X130MM","7753330060123"],["HERRAMIENTAS",744,"SCHUBERT BROCAS PARA CONCRETO 1/2","744"],["HERRAMIENTAS",745,"BROCHA DE NYLON MANGO MADERA COD: 140546 DE 2\" MARCA C&A","745"],["HERRAMIENTAS",746,"BROCHA DE NYLON MANGO MADERA COD: 140548 DE 3\" MARCA C&A","1400106140548"],["HERRAMIENTAS",747,"CINTA PLASTICA PARA MEDIR DE 100 M/330FT ASAKI",""],["HERRAMIENTAS",748,"EPICA - DOUBLE LEVER RIVETER 17\"/425MM INCH, EP-30287 HAND RIVETER","6971243796415"],["HERRAMIENTAS",749,"SOPLETE PISTOLA PARA PINTAR MARCA CROWN 1,3MM DIAMETRO CT38067",""],["HERRAMIENTAS",750,"LLAVE HEXAGONAL DADOS TIPO T 10-12-14 GENERICO","750"],["HERRAMIENTAS",751,"LLAVE VASO TIPO Y HEXAGONAL DE DADOS 12-14-10 GENERICO","751"],["HERRAMIENTAS",752,"LLAVE DADO HEXAGONAL TIPO T 14 GENERICO","752"],["HERRAMIENTAS",753,"LLAVE PARA DADO TIPO L GENERICO","753"],["HERRAMIENTAS",754,"LLAVE Y 8X9X10 UYUSTOOLS REF: YYA010 UYUSTOOLS","6931598229853"],["HERRAMIENTAS",755,"LLAVE TIPO L LARGO 14MM 254MM HRC 38-45 REF: YLL014 UYUSTOOLS","6931598207592"],["HERRAMIENTAS",756,"ESMERILADORA / AMOLADORA ANGULAR 4-1/2\" STANLEY 750W SG7115-B2","885911717519"],["HERRAMIENTAS",757,"ESMERILADORA ANGULAR CLASSIC CROWN CT13022 220-240V 1050WV","7640186240369"],["HERRAMIENTAS",758,"LLAVE CRUZ ZINCADO 17X19X21X23MM UYUSTOOLS","6931598241657"],["HERRAMIENTAS",759,"NIVEL LÁSER AUTONIVELANTE EPICA STAR EP-60375 TRÍPODE LUZ ROJA","6972615517485"],["HERRAMIENTAS",760,"ESMERILADORA / AMOLADORA/ TALADRO ANGULAR 750W 850W GSB 13RE GWS 850W","4059952724423"],["HERRAMIENTAS",761,"TALADRO PERCUTOR FURADEIRA DE IMPACTO HAMMER DRILL 700W MARCA BOSCH","885911454582"],["HERRAMIENTAS",762,"ROMANA DE 100 KILOS 224 LBS POCKET BALANCE HECHIZO","762"],["HERRAMIENTAS",763,"ROMANA DE 12 KILOS 26 LBS POCKET BALANCE HECHIZO","763"],["HERRAMIENTAS",764,"ROMANA PORTABLE DE 5KG GRADUATION 100G PORTABLE SCALE HOME USE","764"],["HERRAMIENTAS",765,"HOJA DE SIERRA ACEROS AREQUIPA 18TPI 12´´ 300MM","7751371000023"],["HERRAMIENTAS",766,"LIIJAS PARA PAPEL CON VELCRO 9\" MARCA ALMOS PROFESSIONAL 230MM","2000100011904"],["HERRAMIENTAS",767,"LIIJAS PARA PAPEL CON VELCRO 7\" MARCA ALMOS PROFESSIONAL 180MM","2000100011898"],["HERRAMIENTAS",768,"DISCO PARA MADERA DE 12\" 60 DE DIENTES MARCA ALMOS PROFEESSIONAL 300X60T","6931688300608"],["HERRAMIENTAS",769,"DISCO DE CORTE [PARA ALUMINIO] NICEIDEAL 125X30T REF:41612","7800678416126"],["HERRAMIENTAS",770,"TOOLMAX DISCO MADERA 10\" /255MM 24 DIENTES TL40744","694035123397"],["HERRAMIENTAS",771,"ALMOS PROFESSIONAL DISCO DIAMANTADO PARA PULIR PARA CONCRETO, LADRILLOS MARMOL, BASALTO -118 4 1/2\"","6931588221171"],["HERRAMIENTAS",772,"DISCO DIAMOND DE PULIR MARCA UYUSTOOLS 4 1/2\" DDP115D","6931598213098"],["HERRAMIENTAS",773,"DISCO DIAMANTADO PARA PULIR MARCA ALMOS PROFESSIONAL -183 7\"","69315882221188"],["HERRAMIENTAS",774,"MOCHILA FUMIGADORA 20LITROS CASCO","383250826"],["HERRAMIENTAS",775,"NIVEL LASER 16 LINEAS DE 360 GRADOS RB-4D-16 REDBO 30M ALCANCE","6937888234224"],["HERRAMIENTAS",776,"CAJA PORTAHERRAMIENTAS 21´´ CASCO","0001960240086"],["HERRAMIENTAS",777,"ESMERILADORA ANGULAR ANGLE GRINDER DISCO DE 4 1/2´´ 115MM 800W 3.6A MOTOR 220V TRUPER PRO REF:11025 ESMA-4-1/2A9-2","7506240655749"],["HERRAMIENTAS",778,"LIJADORA ORBITAL 1/4 HOJA, 240W 1A 220 VMOTOR TRUPER PRO MAX 3H X DIA REF:103338 LIOR-1/4A3-2","7506610211124"],["HERRAMIENTAS",779,"LIJADORA ROTO ORBITAL 12.5CM 5´´ DISCOS 260W 1.2A MOTOR 220V TRUPER REF: 102466 LIRO-5A-2","7502309733977"],["HERRAMIENTAS",780,"ROTOMARTILLO HAMMER DRILL 1/2´´ 13MM BROQUERO 600W 2.3A MOTOR 220V TRUPER PROREF: 15346 ROTO-1/2A7-2","7506240647119"],["HERRAMIENTAS",781,"SIERRA CIRCULAR SAW 7 1/4´´ 185MM DISCO BLADE 1500W 6.5A MOTOR TRUPER PRO REF: 11005 SICI-7-1/4A3-2","7506240654414"],["HERRAMIENTAS",782,"PISTOLA DE AIRE PARA LIMPIEZA DE MOTORES 2PIEZAS TRUPER REF: PILI-697 CODE:19236","17501206628581"],["HERRAMIENTAS",783,"ROTOMARTILLO HAMMER DRILL 1/2´´ 13MM BROQUERO 700W 2.95A MOTOR 220V TRUPER PROREF: 15347 ROTO-1/2A8-2","7506240647126"],["HERRAMIENTAS",784,"PISTOLA DE AIRE PARA LIMPIEZA DE MOTORES 2PIEZAS TRUPER REF: PILI-697 CODE:19236","7506240654179"],["HERRAMIENTAS",785,"MANGUERA PARA COMPRESOR 1/4\" 10M 300 PSI 33FT 19014 MAN-PI-10-1/4","7501206602263"],["HERRAMIENTAS",786,"REGLETA CALIBRADORA DE DIAMETROS TRUPER 10811 REGLA-22","7506240639183"],["HERRAMIENTAS",787,"JUEGO DE COPLES Y CONECTORES RÁPIDOS 1/4NPT MARCA TRUPER 18075 CORAL-6","7506240608332"],["HERRAMIENTAS",788,"PINZA DE PRESIÓN TRUPER MORDAZA CURVA 10\" 2\" 17423 PPT-10C","7501206640241"],["HERRAMIENTAS",789,"ALICATE PINZA DE ELECTRICISTA DE ALTA PALANCA 8\" AÍSLA HASTA 1000V 17330 T201-8X","7501206618998"],["HERRAMIENTAS",790,"CORTADOR DE TUBO DE PLASTICO 1 5/8\" COT-PVC 12860 TRUPER","7501206621912"],["HERRAMIENTAS",791,"PISTOLA DE GRAVEDAD PARA PINTAR BOQUILLA 1.4MM TRUPER REF:11095 PIPI-420","7506240653929"],["HERRAMIENTAS",792,"PISTOLA P/PINTAR BAJA PRESIÓN, 1.5 MM, PULIDA, ENTRADA SUP TRUPER REF: 14036 PIPI-210","7506240654087"],["HERRAMIENTAS",793,"CINTA DE MONTAJE DOBLE CARA 2KG TRUPER 11725","7506240657484"],["HERRAMIENTAS",794,"CINTA PARA DUCTO 30M X 48MM, ESPESOR 0.19MM, TRUPER REF: 12587","7501206673676"],["HERRAMIENTAS",795,"PUNTAS PARA DESARMADOR CRUZ PHILIPS 2´´ TRUPER EXPERT REF: 100195","7506240675389"],["HERRAMIENTAS",796,"PUNTAS PARA DESARMADOR ESTRELLA TORX 2´´ TRUPER EXPERT REF: 12484","7506240671879"],["HERRAMIENTAS",797,"DADOS DE 6 PUNTAS, 18 MILIMÉTRICOS, CUADRO 3/8\" TRUPER REF:13682","7501206616123"],["HERRAMIENTAS",798,"DADO DE 19 MM, 6 PUNTAS, CUADRO 3/8\", TRUPER REF:13683","7501206616130"],["HERRAMIENTAS",799,"DADO DE 16 MM, 6 PUNTAS, CUADRO 3/8\", TRUPER REF: 13680","7501206616109"],["HERRAMIENTAS",800,"COMBA / ABSORBEDOR DE IMPACTOS 4 LB TRUPER","7501206630327"],["HERRAMIENTAS",801,"TRUPER ESCUADRA DE COMBINACION DE 12\" PUNZON PARA MARCAR CON NIVEL DE GOTA ECT-12 14380","7501206630457"],["HERRAMIENTAS",802,"TRUPER BROCA PLANA SPADE BIT 3/4\" ZANCO DE 1/4\" BPT-3/4 11378","7501206623503"],["HERRAMIENTAS",803,"TRUPER BROCA PLANA SPADE BIT 7/8\" ZANCO DE 1/4\" BPT-7/8 11381","7501206623510"],["HERRAMIENTAS",804,"TRUPER BROCA PLANA SPADE BIT 1/2\" ZANCO DE 1/4\" BPT-1/2 11372","7501206623480"],["HERRAMIENTAS",805,"TRUPER BROCA PLANA SPADE BIT 5/8\" ZANCO DE 1/4\" BPT-5/8 11375","7501206623497"],["HERRAMIENTAS",806,"TRUPER BROCA PLANA SPADE BIT 7/16\" ZANCO DE 1/4\" BPT-7/16 11369","7501206625101"],["HERRAMIENTAS",807,"TRUPER BROCA PLANA SPADE BIT 1\" ZANCO DE 1/4\" BPT-1 11384","7501206623527"],["HERRAMIENTAS",808,"TRUPER ACEITERA CON APLICADOR FLEXIBLE 17 OZ 500ML ACEF:500 148774","7501206684184"],["HERRAMIENTAS",809,"TRUPER ACEITERA CON APLICADOR FLEXIBLE 10 OZ 300ML ACEF-300 14872","7501206684160"],["HERRAMIENTAS",810,"COMPRESOR DE AIRE A GASOLINA, 5.5 HP, 100 L, TRUPER REF: 11837 COMP-100G","91961854"],["HERRAMIENTAS",811,"JUEGO DE 25 PIEZAS REGLA DE MULTIFUNCIONAL REGLA DE MEDICION MULTIANGULO GENERICO","811"],["HERRAMIENTAS",812,"DADO DE 15 MM, 6 PUNTAS, CUADRO 3/8\", TRUPER REF: 13679","7501206616093"],["HERRAMIENTAS",813,"DADO DE 14 MM, 6 PUNTAS, CUADRO 3/8\", TRUPER REF: 113678","7501206616086"],["HERRAMIENTAS",814,"DADO DE 13 MM, 6 PUNTAS, CUADRO 3/8\", TRUPER REF: 13677","7501206616079"],["HERRAMIENTAS",815,"DADO DE 12 MM, 6 PUNTAS, CUADRO 3/8\", TRUPER REF: 13676","7501206616062"],["HERRAMIENTAS",816,"DADO DE 11 MM, 6 PUNTAS, CUADRO 3/8\", TRUPER REF: 13675","7501206616055"],["HERRAMIENTAS",817,"DADO DE 10 MM, 6 PUNTAS, CUADRO 3/8\", TRUPER1 REF:13674","7501206616048"],["HERRAMIENTAS",818,"ACEITE MULTIUSOS, 30ML (1OZ), TRUPER REF: 16711","7501206689868"],["HERRAMIENTAS",819,"PISTOLA CALAFATEADORA TIPO ESQUELETO REF: 17550 TRUPER","7501206660676"],["HERRAMIENTAS",820,"BROCA HSS 5/32\" TRUGOLD PARA METAL, TRUPER EXPERT REF: 11122 BAV-5/32","7501206645970"],["HERRAMIENTAS",821,"BROCA HSS 1/8\" TRUGOLD PARA METAL, TRUPER EXPERT REF: 11118 BAV-1/8","57501206645951"],["HERRAMIENTAS",822,"BROCA HSS 1/4\" TRUGOLD PARA METAL, TRUPER EXPERT REF: 11134 BAV-1/4","750120664038"],["HERRAMIENTAS",823,"BROCA HSS 3/16\" TRUGOLD PARA METAL, TRUPER EXPERT REF: 11126 BAV-3/16","57501206645999"],["HERRAMIENTAS",824,"BROCA PARA CONCRETO DE 1/4 X 4\", TRUPER REF:11203 BCT-1/4X4","7501206634479"],["GASFITERÍA / PLOMERÍA",1501,"UNION PVC AGUA FRIA DE 1/2\" ROSCA","1501"],["GASFITERÍA / PLOMERÍA",1502,"TAPON HEMBRA DE 1/2 AGUA FRIA ROSCA","1502"],["GASFITERÍA / PLOMERÍA",1503,"CODO DE 1/2 AGUA FRIA ROSCA","1503"],["GASFITERÍA / PLOMERÍA",1504,"T DE 1/2 AGUA FRIA ROSCA","1504"],["GASFITERÍA / PLOMERÍA",1505,"TAPON MACHO 1/2\" HILO AFUERA HHIDRO","1505"],["GASFITERÍA / PLOMERÍA",1506,"TAMPON HEMBRA 1/2\" HILO INTERNO HIDRO","1506"],["GASFITERÍA / PLOMERÍA",1507,"UNION UNIVERSAL DE 1/2\" PLOMO","1507"],["GASFITERÍA / PLOMERÍA",1508,"UNION UNIVERSAL DE 1/2\" HIDRO","1508"],["GASFITERÍA / PLOMERÍA",1509,"CODO DE 1/2\" ROSCA HIDRO","1509"],["GASFITERÍA / PLOMERÍA",1510,"UNION 1/2\" ROSCA HIDRO","1510"],["GASFITERÍA / PLOMERÍA",1511,"T DE 1/2\" HIDRO ROSCA","1511"],["GASFITERÍA / PLOMERÍA",1512,"ADAPTADOR 1/2 \" PVC /ROSCA EXTERNA HILO, INTERIOR SIN HILO","1512"],["GASFITERÍA / PLOMERÍA",1513,"VÁLVULA O LLAVE DE PASO C/ROSCA 1/2\" HIDRO 450293","1513"],["GASFITERÍA / PLOMERÍA",1514,"LLAVE PASO METAL 1/2\" LIVIANO \"CIM VALVE\"","1514"],["GASFITERÍA / PLOMERÍA",1515,"LLAVE DE PASE C-ITALY DE PVC 1/2\"","1515"],["GASFITERÍA / PLOMERÍA",1516,"VALVULA DE BOLA PVC CON ROSCA 1/2 FLUSS","0001848160024"],["GASFITERÍA / PLOMERÍA",1517,"VALVULAS FERROCENTRO DE 1/2\" (AMARILLA)","1517"],["GASFITERÍA / PLOMERÍA",1518,"VÁLVULA COMPUERTA PESADA DE BRONCE 3/4\" CIM 250WOG","1518"],["GASFITERÍA / PLOMERÍA",1519,"VALVULA DE BOLA PVC 1\" CON ROSCA CON UNIÓN UNIVERSAL MARCA FLUSS","184816021"],["GASFITERÍA / PLOMERÍA",1520,"VALVULA DE BOLA PVC 1\" CON ROSCA MARCA FLUSS","0001848160048"],["GASFITERÍA / PLOMERÍA",1521,"LLAVE DE CONTROL ANGULAR IP 709 COFLEX 1/4 DE VUELTA","710631939173"],["GASFITERÍA / PLOMERÍA",1522,"UNION UNIVERSAL 2\" PVC MIXTA SANKING DN50","1522"],["GASFITERÍA / PLOMERÍA",1523,"ACCESORIO PARA TANQUE INODORO MODELO DE LUXE 4,8 LITROS MARCA TREBOL","1523"],["GASFITERÍA / PLOMERÍA",1524,"TRAMPA DE LAVADERO MARCA LIDERPLAST PLUS 1.1/2","1524"],["GASFITERÍA / PLOMERÍA",1525,"KIT INSTALACION PARA 1/2 BAÑO W/C BASICO PS-K314 ECONÓMICO COFLEX","710631933188"],["GASFITERÍA / PLOMERÍA",1526,"COLADERA CUADRADA DE ABS CON REJILLA CROMADA MARCA COFLEX PC-161","710631925466"],["GASFITERÍA / PLOMERÍA",1527,"DUCHA ELÉCTRICA SOLE EVOLUCIÓN 2T 5400W BLANCO/AZUL SKU: 102514","7756514007631"],["GASFITERÍA / PLOMERÍA",1528,"JUEGO DE ACCESORIO COMPLETO 7/8 P/ TANQUE INODORO SANI BLANCO","1528"],["GASFITERÍA / PLOMERÍA",1529,"TRAMPA BOTELLA CON DESAGUE PARA LAVATORIO 1 1/4\" PVC(PRODUCTO PERUANO) MARCA SANIFER","1529"],["GASFITERÍA / PLOMERÍA",1530,"TRAMPA CORRUGADA C/DESAGUE REJILLA BOLSA TREBOL SKU: 7750575074847","7750575074847"],["GASFITERÍA / PLOMERÍA",1531,"CONECTOR O CHICOTE DE VINILO PARA SANITARIO 1/2\"MX7/8\" X 40CM","71063193317"],["GASFITERÍA / PLOMERÍA",1532,"MAXI DUCHA ULTRA LORENZETI ECVSB-E16","7896451830524"],["GASFITERÍA / PLOMERÍA",1533,"VALVULA DE BOLA PVC 3/4\" CON ROSCA CON UNIÓN UNIVERSAL MARCA FLUSS","184816020"],["GASFITERÍA / PLOMERÍA",1534,"LA VÁLVULA REGULADORA DE PRESIÓN DE GAS MARCA SURGE","1534"],["GASFITERÍA / PLOMERÍA",1535,"ANILLO DE CERA METUSA ACCESORIOS SANITARIOS 4´´","7756514000588"],["GASFITERÍA / PLOMERÍA",1536,"COLADERA REDONDA DE ABS CON REJILLA CROMADA MARCA COFLEX PC-151","710631925435"],["GASFITERÍA / PLOMERÍA",1537,"VALVULA DE PRESION PARA GAS ADAPTADOR SURGE","1537"],["GASFITERÍA / PLOMERÍA",1538,"RESISTENCIAS DE RESORTE PARA DUCHA LORENZETI 220/230V 5500W 3T","5901234123457"],["GASFITERÍA / PLOMERÍA",1539,"TEKNI CENTRO LLAVE DE DUCHA","1539"],["GASFITERÍA / PLOMERÍA",1540,"RORY JUEGO DE DUCHA PEQUEÑO CROMADO","1540"],["GASFITERÍA / PLOMERÍA",1541,"DUCHA BORDES CUADRADOS BLANCO Y CROMADO",""],["GASFITERÍA / PLOMERÍA",1542,"ELECTRO NIVEL P/TANQUE O CISTERNA PORTIZA",""],["ELECTRICIDAD (INSTALACIÓN)",2001,"INTERRUPTOR SIMPLE CUBULL A3 003","7751234569681"],["ELECTRICIDAD (INSTALACIÓN)",2002,"CONMUTADOR SIMPLE CUBULL L3 004","7751240001243"],["ELECTRICIDAD (INSTALACIÓN)",2003,"CONMUTADOR SIMPLE CUBULL A3 004","7751234570205"],["ELECTRICIDAD (INSTALACIÓN)",2004,"CONMUTADOR DOBLE CUBULL A3 008","7751234564624"],["ELECTRICIDAD (INSTALACIÓN)",2005,"CONMUTADOR TRIPLE A3 010","7751234564648"],["ELECTRICIDAD (INSTALACIÓN)",2006,"INTERRUPTOR + 1 TOMA A3 027 (MIXTO)","7751234564716"],["ELECTRICIDAD (INSTALACIÓN)",2007,"INTERRUPTOR DOBLE A3 007 CUBULL","7751234567809"],["ELECTRICIDAD (INSTALACIÓN)",2008,"INTERRUPTOR TRIPLE A3 009 CUBULL","7751234564631"],["ELECTRICIDAD (INSTALACIÓN)",2009,"TOMACORRIENTE DOBLE S A3 014 CUBULL","7751234564679"],["ELECTRICIDAD (INSTALACIÓN)",2010,"TOMACORRIENTE DOBLE A A3 021 (TRIFASICO)","7751234567861"],["ELECTRICIDAD (INSTALACIÓN)",2011,"TOMACORRIENTE TRIPLE S L3 015 (TRES ENTRADAS)","7751240001359"],["ELECTRICIDAD (INSTALACIÓN)",2012,"CUBULL TOMACORRIENTE TRIPLE A A3 022 (TRIFASICO)","7751234570007"],["ELECTRICIDAD (INSTALACIÓN)",2013,"CUBULL TOMACORRIENTE DE TV A3 033","7751234564723"],["ELECTRICIDAD (INSTALACIÓN)",2014,"CUBULL TOMACORRIENTE DOBLE A DORADO (TRIFASICO) A6 021","7751234567908"],["ELECTRICIDAD (INSTALACIÓN)",2015,"CUBULL 1 INTERRUPTOR + 1 TOMA CUBULL DORADO A6 027 (MIXTO)","7751234564891"],["ELECTRICIDAD (INSTALACIÓN)",2016,"CUBULL TOMACORRIENTE DOBLE S SIMPLE A6 014 DORADO CUBULL","7751234564853"],["ELECTRICIDAD (INSTALACIÓN)",2017,"CUBULL TOMACORRIENTE TIPLE SIMPLE DORADO A6 015 CUBULL","7751234564860"],["ELECTRICIDAD (INSTALACIÓN)",2018,"CUBULL CONMUTADOR DOBLE DORADO A6 008 CUBULL","7751234564808"],["ELECTRICIDAD (INSTALACIÓN)",2019,"CUBULL INTERRUPTOR TRIPLE DORADO A6 009 CUBULL","7751234564815"],["ELECTRICIDAD (INSTALACIÓN)",2020,"TOMACORRIENTE DOBLE TRIFASICO CON PROTECTOR ULTRA ELECTRIC","2020"],["ELECTRICIDAD (INSTALACIÓN)",2021,"TOMACORRIENTE SIMPLE S VERDE/DORADO CUBULL A8 013","7751234568639"],["ELECTRICIDAD (INSTALACIÓN)",2022,"TOMACORRIENTE TRIPLE S CUBULL VERDE/DORADO A8 015","7751234568653"],["ELECTRICIDAD (INSTALACIÓN)",2023,"INTERRUPTOR DOBLE SIMPLE CUBULL VERDE/DORADO A8 007","7751234568578"],["ELECTRICIDAD (INSTALACIÓN)",2024,"INTERRUPTOR TRIPLE CUBULL VERDE/DORADO A8 009","7751234568592"],["ELECTRICIDAD (INSTALACIÓN)",2025,"TOMACORRIENTE DOBLE SIMPLE CUBULL DORADO/ MADERA A4 014","7751234565454"],["ELECTRICIDAD (INSTALACIÓN)",2026,"INTERRUPTOR DOBLE CUBULL DORADO/MADERA A4 007","7751234565393"],["ELECTRICIDAD (INSTALACIÓN)",2027,"1 INTERRUPTOR + 1 TOMA CUBULL DORADO/MADERA A4 027","7751234565515"],["ELECTRICIDAD (INSTALACIÓN)",2028,"TOMACORRIENTE + 2 USB CUBULL DORADO/MADERA A4 032","7751234568424"],["ELECTRICIDAD (INSTALACIÓN)",2029,"1 TOMACORRIENTE + 1 INTERRUPTOR (MIXTO) SIMPLE STORCK","6932112011039"],["ELECTRICIDAD (INSTALACIÓN)",2030,"TOMACORRIENTE PLATEADO 1 TOMA SIMPLE ULTRA ELECTRIC","2030"],["ELECTRICIDAD (INSTALACIÓN)",2031,"TOMACORRIENTE DOBLE TRIFASICO DORADO EN ULTRA ELECTRIC","2031"],["ELECTRICIDAD (INSTALACIÓN)",2032,"INTERRUPTOR SIMPLE ULTRA ELECTRIC DORADO","2032"],["ELECTRICIDAD (INSTALACIÓN)",2033,"INTERRUPTOR SIMPLE ULTRA ELECTRIC DORADO/MADERA","2033"],["ELECTRICIDAD (INSTALACIÓN)",2034,"TOMACORRIENTE DOBLE SIMPLE STORCK ISS","6932112011084"],["ELECTRICIDAD (INSTALACIÓN)",2035,"INTERRUPTOR SIMPLE PLATEADO ULTRA ELECTRIC","2035"],["ELECTRICIDAD (INSTALACIÓN)",2036,"TOMACORRIENTE DOBLE TRIFASICO PLATEADO ULTRA ELECTRIC","2036"],["ELECTRICIDAD (INSTALACIÓN)",2037,"TOMACORRIENTE DOBLE TRIFASICO PLATEADO/NEGRO ULTRA ELECTRIC","2037"],["ELECTRICIDAD (INSTALACIÓN)",2038,"INTERRUPTOR SIMPLE PLATEADO-7NEGRO ULTRA ELECTRIC","2038"],["ELECTRICIDAD (INSTALACIÓN)",2039,"INTERRUPTOR DOBLE SIMPLE STORCK SS","6932112011039"],["ELECTRICIDAD (INSTALACIÓN)",2040,"INTERRUPTOR PARA TIMBRE ULTRA ELECTRIC","2040"],["ELECTRICIDAD (INSTALACIÓN)",2041,"INTERRUPTOR SIMPLE ULTRA ELECTRIC","2041"],["ELECTRICIDAD (INSTALACIÓN)",2042,"INTERRUPTOR DOBLE ULTRA ELECTRIC","2042"],["ELECTRICIDAD (INSTALACIÓN)",2043,"TOMACORRIENTE DOBLE TRIFASICO SIMPLE RECTANGULAR","2043"],["ELECTRICIDAD (INSTALACIÓN)",2044,"TOMACORRIENTE SIMPLE STORCK","2044"],["ELECTRICIDAD (INSTALACIÓN)",2045,"INTERRUPTOR SIMPLE STORCK","2045"],["ELECTRICIDAD (INSTALACIÓN)",2046,"TOMACORRIENTE X SIMPLE ULTRA ELECTRIC","8012199645896"],["ELECTRICIDAD (INSTALACIÓN)",2047,"INTERRUPTOR X SIMPLE ULTRA ELECTRIC","2047"],["ELECTRICIDAD (INSTALACIÓN)",2048,"1 TOMACORRIENTE + 1 INTERRUPTOR (MIXTO) ULTRA ELECTRIC","2048"],["ELECTRICIDAD (INSTALACIÓN)",2049,"INTERRUPTOR DOBLE X SIMPLE ULTRA ELECTRIC","2049"],["ELECTRICIDAD (INSTALACIÓN)",2050,"TOMACORRIENTE DOBLE TRIFASICO X SIMPLE ULTRA ELECTRIC","2050"],["ELECTRICIDAD (INSTALACIÓN)",2051,"TOMACORRIENTE SIMPLE BTICINO GENERICO","2051"],["ELECTRICIDAD (INSTALACIÓN)",2052,"INTERRUPTOR DOBLE SIMPLE BTICINO GENERICO DOMINO SENCIA","2052"],["ELECTRICIDAD (INSTALACIÓN)",2053,"TOMACORRIENTE TRIPLE SIMPLE BTICINO GENERICO","2053"],["ELECTRICIDAD (INSTALACIÓN)",2054,"SOCKET SIMPLE PLANO ULTRA ELECTRIC","2054"],["ELECTRICIDAD (INSTALACIÓN)",2055,"SOCKET OVAL SIMPLE ULTRA ELECTRIC","2055"],["ELECTRICIDAD (INSTALACIÓN)",2056,"SOCKET SIMPLE PLANO BTICINO","7506181313159"],["ELECTRICIDAD (INSTALACIÓN)",2057,"SOCKET OVAL BTICINO SIMPLE","7506181313166"],["ELECTRICIDAD (INSTALACIÓN)",2058,"SOCKET PLANO BTICINO SIMPLE","8005543486191"],["ELECTRICIDAD (INSTALACIÓN)",2059,"INTERRUPTOR COLGANTE SIMPLE ULTRA ELECTRIC","2059"],["ELECTRICIDAD (INSTALACIÓN)",2060,"INTERRUPTOR COLGANTE PARA MADERA ULTRA ELECTRIC","2060"],["ELECTRICIDAD (INSTALACIÓN)",2061,"INTERRUPTOR TIMBRE COLGANTE ULTRA ELECTRIC","2061"],["ELECTRICIDAD (INSTALACIÓN)",2062,"ENCHUFE MONOFASICO INDUSTRIAL ULTRA ELECTRIC","2062"],["ELECTRICIDAD (INSTALACIÓN)",2063,"ENCHUFE ADAPTADOR TRIFASICO","2063"],["ELECTRICIDAD (INSTALACIÓN)",2064,"ENCHUFE ADAPTADOR DE 3 ENTRADAS ULTRA ELECTRIC","2064"],["ELECTRICIDAD (INSTALACIÓN)",2065,"ADAPTADOR MULTIPLE TRIFASICO HOME LIGHT","1660101166064"],["ELECTRICIDAD (INSTALACIÓN)",2066,"ENCHUFE ADAPTADOR MULTIPLE OPALUX","2066"],["ELECTRICIDAD (INSTALACIÓN)",2067,"SOCKET PARA MADERA ULTRA ELECTRIC","2067"],["ELECTRICIDAD (INSTALACIÓN)",2068,"INTERRUPTOR SIMPLE BTICINO GENERICO DOMINO SENCIA","2068"],["ELECTRICIDAD (INSTALACIÓN)",2069,"INTERRUPTOR PARA TIMBRE BTICINO","2069"],["ELECTRICIDAD (INSTALACIÓN)",2070,"TOMACORRIENTE DOBLE TRIFASICO BTICINO MODUS GENERICO","2070"],["ELECTRICIDAD (INSTALACIÓN)",2071,"INTERRUPTOR DOBLE SIMPLE BTICINO GENERICO SENCIA","2071"],["ELECTRICIDAD (INSTALACIÓN)",2072,"INTERRUPTOR DOBLE BTICINO ORIGINAL","TOMACORRIENTE DOBLE TRIFASICO TIPO UNIVERSAL CON ALVEOLOS PROTEGIDOS BTICINO DOMINO SENCIA ORIGINAL"],["ELECTRICIDAD (INSTALACIÓN)",2073,"TOMACORRIENTE DOBLE TRIFASICO SENCIA ORIGINAL","7702089161926"],["ELECTRICIDAD (INSTALACIÓN)",2074,"SOCKET COLGANTE SIMPLE","2074"],["ELECTRICIDAD (INSTALACIÓN)",2075,"SOCKET CON ENCHUFE SIMPLE","2075"],["ELECTRICIDAD (INSTALACIÓN)",2076,"INTERRUPTOR DE DOS TIEMPOS PEQUEÑO","2076"],["ELECTRICIDAD (INSTALACIÓN)",2077,"ADAPTADOR MULTIPLE SIMPLE","2077"],["ELECTRICIDAD (INSTALACIÓN)",2078,"SOCKET DECORATIVO CON ENCHUFE Y TOMACORRIENTE","2078"],["ELECTRICIDAD (INSTALACIÓN)",2079,"CUCHILLA TERMOMAGNETICA ORIGINAL BTICINO 2X10A C10","8005543536568"],["ELECTRICIDAD (INSTALACIÓN)",2080,"CUCHILLA TERMOMAGNETICA ORIGINAL BTICINO 2X16A C16","8005543535998"],["ELECTRICIDAD (INSTALACIÓN)",2081,"CUCHILLA TERMOMAGNETICA ORIGINAL BTICINO 2X20A C20","8005543536599"],["ELECTRICIDAD (INSTALACIÓN)",2082,"CUCHILLA TERMOMAGNETICA ORIGINAL BTICINO 2X25A C25","8005543536629"],["ELECTRICIDAD (INSTALACIÓN)",2083,"CUCHILLA TERMOMAGNETICA ORIGINAL BTICINO 2X32A C32","8005543536690"],["ELECTRICIDAD (INSTALACIÓN)",2084,"CUCHILLA TERMOMAGNETICA ORIGINAL BTICINO 2X40A C40","8005543536025"],["ELECTRICIDAD (INSTALACIÓN)",2085,"CUCHILLA TERMOMAGNETICA ORIGINAL BTICINO 2X63A C63","8005543536087"],["ELECTRICIDAD (INSTALACIÓN)",2086,"CUCHILLA TERMOMAGNETICA TRIFÁSICO ORIGINAL BTICINO 3X50A C50","8005543536865"],["ELECTRICIDAD (INSTALACIÓN)",2087,"CUCHILLA TERMOMAGNETICA TRIFÁSICO ORIGINAL BTICINO 3X63A C63","8005543535806"],["ELECTRICIDAD (INSTALACIÓN)",2088,"CUCHILLA TERMOMAGNETICA DIFERENCIAL ORIGINAL BTICINO 2X25A 30MA 230V 2P","8005543516157"],["ELECTRICIDAD (INSTALACIÓN)",2089,"CUCHILLA TERMOMAGNETICA STRONGER C20","2089"],["ELECTRICIDAD (INSTALACIÓN)",2090,"CUCHILLA TERMOMAGNETICA STRONGER C32","2090"],["ELECTRICIDAD (INSTALACIÓN)",2091,"CUCHILLA TERMOMAGNETICA STRONGER C63","2091"],["ELECTRICIDAD (INSTALACIÓN)",2092,"CUCHILLA DIFERENCIAL MAGNETICO STRONGER EN CAJA DE 25A 2 POLOS","2092"],["ELECTRICIDAD (INSTALACIÓN)",2093,"CUCHILLA TERMOMAGNETICA GENERICO BTICINO 2X63A C63","7750293010297"],["ELECTRICIDAD (INSTALACIÓN)",2094,"CUCHILLA TERMOMAGNETICA GENERICO BTICINO 2X32A C32","7750293010276"],["ELECTRICIDAD (INSTALACIÓN)",2095,"CUCHILLA TERMOMAGNETICA TRIFÁSICO GENERICO BTICINO 3X50A C50","2095"],["ELECTRICIDAD (INSTALACIÓN)",2096,"CUCHILLA TERMOMAGNETICA TRIFÁSICO GENERICO BTICINO 3X63A C63","7750293010318"],["ELECTRICIDAD (INSTALACIÓN)",2097,"CUCHILLA TERMOMAGNETICA ENERVOLTAGE 2X32A C32","2097"],["ELECTRICIDAD (INSTALACIÓN)",2098,"CUCHILLA DIFERENCIAL MAGNETICO FLYING 3X32A C32","2098"],["ELECTRICIDAD (INSTALACIÓN)",2099,"CAJA DE CUCHILLA NOWA ELECTRIC CAJA DE PASE 100X100X70","2099"],["ELECTRICIDAD (INSTALACIÓN)",2100,"CAJA DE PASE MARCA MEGANS ELECTRIC DE 300X300X160","2100"],["ELECTRICIDAD (INSTALACIÓN)",2101,"CAJA DE PASE MARCA MAX PLAST DE 250X200X100","2101"],["ELECTRICIDAD (INSTALACIÓN)",2102,"GABINETE EMPOTRABLE 2 POLOS PARA 1 LLAVE MARCA NOWA ELECTRIC","2102"],["ELECTRICIDAD (INSTALACIÓN)",2103,"GABINETE DE 12 POLOS PARA 6 LLAVES MARCA NOWA ELECTRIC","2103"],["ELECTRICIDAD (INSTALACIÓN)",2104,"GABINETE DE 8 POLOS PARA 4 LLAVES MARCA NOWA ELECTRIC","2104"],["ELECTRICIDAD (INSTALACIÓN)",2105,"GABINETE DE 3 POLOS MARCA STAR ELECTRIC","2105"],["ELECTRICIDAD (INSTALACIÓN)",2106,"GABINETE DE 6 POLOS MARCA STAR ELECTRIC","2106"],["ELECTRICIDAD (INSTALACIÓN)",2107,"GABINETE DE 12 POLOS MARCA STAR ELECTRIC","2107"],["ELECTRICIDAD (INSTALACIÓN)",2108,"CAJA DE PASE MARCA APG ELECTRIC DE 150X110X80","2108"],["ELECTRICIDAD (INSTALACIÓN)",2109,"GABINETE DE 6 POLOS MARCA STAR ELECTRIC IP65 A-129}","2109"],["ELECTRICIDAD (INSTALACIÓN)",2110,"GABINETE DE 8 POLOS MARCA STAR ELECTRIC A-048","2110"],["ELECTRICIDAD (INSTALACIÓN)",2111,"GABINETE DE 12 POLOS MARCA STAR ELECTRIC A- 071","2111"],["ELECTRICIDAD (INSTALACIÓN)",2112,"CAJA DE PASO MARCA STAR ELECTRIC 20X20X80","2112"],["ELECTRICIDAD (INSTALACIÓN)",2113,"CAJA DE PASO MARCA STAR ELECTRIC 15X15X80","2113"],["ELECTRICIDAD (INSTALACIÓN)",2114,"CAJA DE PASO MARCA STAR ELECTRIC 10X10X70","2114"],["ELECTRICIDAD (INSTALACIÓN)",2115,"CAJA DE PASO MARCA STAR ELECTRIC 30X30X80","2115"],["ELECTRICIDAD (INSTALACIÓN)",2116,"CAJA MODULAR 2\"X4\" PARA INSTALACIONES DE SUPERFICIES MARCA STAR ELECTRIC","2116"],["ELECTRICIDAD (INSTALACIÓN)",2117,"TAPA CIEGA RECTANGULAR PLASTICA XACE KBA ELECTRIC","2117"],["ELECTRICIDAD (INSTALACIÓN)",2118,"TAPA CIEGA CIRCULAR PVC OROPLAST","2118"],["ELECTRICIDAD (INSTALACIÓN)",2119,"INTERRUPTOR SENCILLO BTCINO DOMINO SENCIA ORIGINAL","7702089161681"],["ELECTRICIDAD (INSTALACIÓN)",2120,"INTERRUPTOR DOBLE BTICINO DOMINO SENCIA ORIGINAL","7702089161865"],["ELECTRICIDAD (INSTALACIÓN)",2121,"TOMACORRIENTE DOBLE TRIFASICO BTICINO MODUS ORIGINAL","8005543666210"],["ELECTRICIDAD (INSTALACIÓN)",2122,"TOMACORRIENTE DOBLE TRIFASICO TIPO UNIVERSAL CON ALVEOLOS PROTEGIDOS BTICINO MODUS ORIGINAL","7702089161926"],["ELECTRICIDAD (INSTALACIÓN)",2123,"CUCHILLA DIFERENCIAL EDILUZ 25A C25","2123"],["ELECTRICIDAD (INSTALACIÓN)",2124,"SUPRESOR DE PICO 6 TOMAS UNIVERSALES 15AMP MARCA ULTRA ELECTRIC 1.2M DE EXTENSOR","2124"],["ELECTRICIDAD (INSTALACIÓN)",2125,"EXTENSIÓN UNIVERSAL TRANSPARENTE 15 AMP 5 MTS MARCA ULTRA ELECTRIC DE 3 TOMAS","204926144712"],["ELECTRICIDAD (INSTALACIÓN)",2126,"EXTENSIÓN UNIVERSAL TRANSPARENTE 15 AMP 7.5 MTS MARCA ULTRA ELECTRIC DE 3 TOMAS","2049261256823"],["ELECTRICIDAD (INSTALACIÓN)",2127,"EXTENSIÓN UNIVERSAL TRANSPARENTE 15 AMP 10 MTS MARCA ULTRA ELECTRIC DE 3 TOMAS","204926144729"],["ELECTRICIDAD (INSTALACIÓN)",2128,"EXTENSIÓN UNIVERSAL TRANSPARENTE 15 AMP 20 MTS MARCA ULTRA ELECTRIC DE 3 TOMAS","204926144811"],["ELECTRICIDAD (INSTALACIÓN)",2129,"CAJA DE LUZ OCTAGONAL GENERICO","2129"],["ELECTRICIDAD (INSTALACIÓN)",2130,"PINZA PORTA ELECTRODO DE 600A (COCODRILO) AMERICAN","2130"],["ELECTRICIDAD (INSTALACIÓN)",2131,"TIMBRE TRADICIONAL DIN DON MARCA VERA CAJA RESONANTE EN POLIESTIRENO","7704495233211"],["ELECTRICIDAD (INSTALACIÓN)",2132,"TIMBRE INDUSTRIAL MARCA VERA DE 6\" REDONDO CAMPANA DE ALUMINIO AL SILICIO","7704495233259"],["ELECTRICIDAD (INSTALACIÓN)",2133,"TRUPER CABLES PASACORRIENTE COCODRILOS INTEGRADOS DE 3M CAP-3008T 17543 12V 225A","7501206658987"],["ELECTRICIDAD (INSTALACIÓN)",2134,"TOMACORRIENTE DE 1 TOMA TRIFASICO CAJA MARCA STAR ELECTRIC","2134"],["ELECTRICIDAD (INSTALACIÓN)",2135,"TOMACORRIENTE DE 2 TOMAS TRIFASICO CAJA MARCA STAR ELECTRIC","2135"],["ELECTRICIDAD (INSTALACIÓN)",2136,"TOMACORRIENTE DE 2 TOMAS TRIFASICO CAJA LARGA MARCA STAR ELECTRIC","2136"],["ELECTRICIDAD (INSTALACIÓN)",2137,"TOMACORRIENTE DE 2 TOMAS TRIFASICO CAJA LARGA MARCA STAR ELECTRIC RECTANGULAR CON CAPAS","2137"],["ELECTRICIDAD (INSTALACIÓN)",2138,"TOMACORRIENTE DE 3 TOMAS TRIFASICO CAJA LARGA MARCA STAR ELECTRIC","2138"],["ELECTRICIDAD (INSTALACIÓN)",2139,"TOMACORRIENTE DE 4 TOMAS TRIFASICO CAJA LARGA MARCA STAR ELECTRIC","2139"],["ELECTRICIDAD (INSTALACIÓN)",2140,"TOMACORRIENTE DE 2 TOMAS TRIFASICO INDUSTRIAL CAJA MARCA STAR ELECTRIC","2140"],["PINTURAS Y ACABADOS",2501,"RODILLO PARA PINTURA EPOXICA 9\" X 3/16\" - MARCA TRIBU","0003902000789"],["PINTURAS Y ACABADOS",2502,"RODILLO PARA PINTURA EPOXICA TORO12\" ROSA","7750633000924"],["PINTURAS Y ACABADOS",2503,"RODILLO ANTIGOTA 9\" X 3/8\" PARA SUPERFICIES LISAS - MARCA TRIBU","0003902000802"],["PINTURAS Y ACABADOS",2504,"RODILLO ANTIGOTA JK9\" TIPO PELUCHE","2504"],["PINTURAS Y ACABADOS",2505,"RODILLO PARA PINTAR C&A12\" - COD.140363","1400106140363"],["PINTURAS Y ACABADOS",2506,"RODILLO PARA PINTAR C&A9\" - COD.140067","1400106140067"],["PINTURAS Y ACABADOS",2507,"RODILLOPARAPINTARC&A0 3\"-COD.140373","1400106140373"],["PINTURAS Y ACABADOS",2508,"RODILLO PARA PINTAR TORO7\" NARANJA","7750633358353"],["PINTURAS Y ACABADOS",2509,"RODILLOS BOXERANTIGOTEO 9\" TEJIDO PERCHADO","7750633001129"],["PINTURAS Y ACABADOS",2510,"RODILLOS TORO7\" PELUCHE 12MMBLANCO","7750633358285"],["PINTURAS Y ACABADOS",2511,"RODILLOS BOXER ANTIGOTEO 4\" X 24\"","7750633001105"],["PINTURAS Y ACABADOS",2512,"RODILLO MARCA TORO EPOXI 3\" X 24\" TEJIDO VELOUR 5/32\"","7750633001198"],["PINTURAS Y ACABADOS",2513,"PELUCHE 2/4\" 12\" RODILLO MARCA TORO NARANJA","7750633358377"],["PINTURAS Y ACABADOS",2514,"RODILLO TORO ROSA DE 9\" EPOXI TWJIDO VELOUR 5/32\"","7750633000058"],["PINTURAS Y ACABADOS",2515,"RODILLO TORO NARANJA DE 9\" PELUCHEE 3/4","7750633358360"],["PINTURAS Y ACABADOS",2516,"RODILLO BOXER ANTIGOTEO 7\" TEJIDO PERCHADO 7/16\"","7750633001112"],["PINTURAS Y ACABADOS",2517,"PINTURA EN SPRAY C&A 400ML CROMADOS","2517"],["PINTURAS Y ACABADOS",2518,"PINTURA EN SPRAY MULTICOLORES C&A 400ML","2518"],["PINTURAS Y ACABADOS",2519,"PINTURA LÁTEX SATINADO CPP BLANCO PERLA 1 GALÓN SKU:50900069","7752835087581"],["PINTURAS Y ACABADOS",2520,"PINTURA SATINADO CPP BLANCO HUESO 1 GALÓN SKU:50900068","7752835087567"],["PINTURAS Y ACABADOS",2521,"PINTURA LÁTEX SATINADO CPP BLANCO HUMO 1 GALÓN SKU: 50900070","7752835087574"],["PINTURAS Y ACABADOS",2522,"PINTURA SATINADO CPP GRIS HORIZONTE 1 GALÓN SKU:50900110","7752835087710"],["PINTURAS Y ACABADOS",2523,"PINTURA LÁTEX SATINADO CPP GRIS CLARO 1 GALÓN SKU: 50900109","7752835087680"],["PINTURAS Y ACABADOS",2524,"PINTURA LÁTEX SATINADO CPP BLANCO 1 GALÓN SKU: 50900066","7752835087420"],["PINTURAS Y ACABADOS",2525,"SELLADOR PARA MUROS BLANCO 1 GL CPP SKU: 50900148","7752835085051"],["PINTURAS Y ACABADOS",2526,"IMPRIMANTE BLANCO 1 GALÓN CPP","7752835014082"],["PINTURAS Y ACABADOS",2527,"PASTA FINA PARA MUROS BLANCO 1 GALÓN CPP SKU: 50900197","7752835002775"],["PINTURAS Y ACABADOS",2528,"IMPRIMANTE BLANCO 4 GALONES CPP SKU: 50902412","7752835085037"],["PINTURAS Y ACABADOS",2529,"PASTA FINA CPP BLANCO 3.5 GALONES SKU: 50902411","7752835085075"],["PINTURAS Y ACABADOS",2530,"MASILLA PARA DRYWALL GYPLAC LISTA PARA USAR 5 KG","7750389002142"],["PINTURAS Y ACABADOS",2531,"BANDEJA ECONOMICA MARCA ATOM 9\"","7506385385488"],["CERRAJERÍA Y SEGURIDAD",3001,"KUSAR CANDADO 63MM KU-963","3001"],["CERRAJERÍA Y SEGURIDAD",3002,"CERRADURA PARA MUEBLES TIPO ESCRITORIO MARCA EDYLOCK NACIONAL","3002"],["CERRAJERÍA Y SEGURIDAD",3003,"CERRADURA DE MUEBLES MARCA CANPER NACIONAL PEQUEÑO","3003"],["CERRAJERÍA Y SEGURIDAD",3004,"CERRADURA MUEBLE DE ESCRITORIO MARCA CANPER 103-20","3004"],["CERRAJERÍA Y SEGURIDAD",3005,"CANDADO MARCA GONTI 50MM","3005"],["CERRAJERÍA Y SEGURIDAD",3006,"ALMOS CANDADO NUMERO 50MM","3006"],["CERRAJERÍA Y SEGURIDAD",3007,"ALMOS CANDADO DE 32MM","3007"],["CERRAJERÍA Y SEGURIDAD",3008,"CERRADURA MUEBLE DE ESCRITORIO MARCA CANPER 103-16","3008"],["CERRAJERÍA Y SEGURIDAD",3009,"CERROJO U ALDABA DE 5\" REF: 41063 MARCA NICEIDEAL 2PCS","7800678410636"],["CERRAJERÍA Y SEGURIDAD",3010,"CERROJO U ALDABA DE 3\" REF: 41061 MARCA NICEIDEAL 2PCS","7800678410612"],["CERRAJERÍA Y SEGURIDAD",3011,"PICAPORTE O CERROJO DE SEGURIDAD DE 4\" MARCA DH TOWER BOLT","8024082659521"],["CERRAJERÍA Y SEGURIDAD",3012,"PICAPORTE O CERROJO DE SEGURIDAD DE 4CM MARCA NICEIDEAL REF:41055","7800678410551"],["CERRAJERÍA Y SEGURIDAD",3013,"PICAPORTE O CERROJO DE SEGURIDAD DE 2\" MARCA NICEIDEAL REF: 41051","7800678410513"],["CERRAJERÍA Y SEGURIDAD",3014,"PICAPORTE PESTILLO DE PUERTA/CERRADURA DE PUERTA 100MM MARCA NICEIDEAL REF: 41065","7800678410650"],["CERRAJERÍA Y SEGURIDAD",3015,"CANDADO DE SEGURIDAD MARCA NICEIDEAL 50MM OREJA GRANDE REF:41043","7800678410438"],["CERRAJERÍA Y SEGURIDAD",3016,"CANDADO CON CLAVE NEGRO MARCA NICEIDEAL 60X30X10MM REF: 41000","7800678410001"],["CERRAJERÍA Y SEGURIDAD",3017,"CANDADO MARCA CANPER -50MM","3017"],["CERRAJERÍA Y SEGURIDAD",3018,"CANDADO MARCA CANPER -32MM","3018"],["CERRAJERÍA Y SEGURIDAD",3019,"BISAGRA DE ALUMINIO DE 1 1/2´´ EL GALLO","3019"],["CERRAJERÍA Y SEGURIDAD",3020,"BISAGRA DE ALUMINIO DE 1´´ EL GALLO","3020"],["CERRAJERÍA Y SEGURIDAD",3021,"BISAGRA DE ALUMINIO DE 2´´ EL GALLO","3021"],["CERRAJERÍA Y SEGURIDAD",3022,"BISAGRA DE ALUMINIO DE 2 1/2´´ EL GALLO","3022"],["CERRAJERÍA Y SEGURIDAD",3023,"BISAGRA DE ALUMINIO DE 3´´ EL GALLO","3023"],["CERRAJERÍA Y SEGURIDAD",3024,"BISAGRA DE ALUMINIO DE 3 1/2´´ EL GALLO","3024"],["CERRAJERÍA Y SEGURIDAD",3025,"BISAGRA DE ALUMINIO DE 4´´ EL GALLO","3025"],["CERRAJERÍA Y SEGURIDAD",3026,"PISTÓN DE AIRE DE 100N BASE REDONDA SFD007 MARCA LECCO 000022","3026"],["CERRAJERÍA Y SEGURIDAD",3027,"PISTÓN DE AIRE DE 80N BASE REDONDA SFD007 MARCA LECCO 000016","3027"],["CERRAJERÍA Y SEGURIDAD",3028,"BISAGRA TIPO CANGREJO CENTRAL CN-08 110° 35MM LN8+H=0 LECCO","3028"],["CERRAJERÍA Y SEGURIDAD",3029,"BISAGRA TIPO CANGREJO LATERAL CN-09 110° 35MM LN9+H=0 LECCO","3029"],["CERRAJERÍA Y SEGURIDAD",3030,"BISAGRA TIPO CANGREJO INTERIOR CN-07 110° 35MM LN7+H=2 LECCO","3030"],["CERRAJERÍA Y SEGURIDAD",3031,"CORREDERA TELESCÓPICA 20\" (500MM) LECCO REF: RJ250318L3","3031"],["CERRAJERÍA Y SEGURIDAD",3032,"CORREDERA TELESCÓPICA 18\" (450MM) LECCO REF: RJ250117L1","3032"],["CERRAJERÍA Y SEGURIDAD",3033,"CORREDERA TELESCÓPICA 16\" (400MM) LECCO REF: RJ250610L3","3033"],["CERRAJERÍA Y SEGURIDAD",3034,"CORREDERA TELESCÓPICA 14\" (350MM) LECCO REF: RJ250719LB1","3034"],["CERRAJERÍA Y SEGURIDAD",3035,"CORREDERA TELESCÓPICA 12\" (300MM) LECCO REF: RJ250318L3","3035"],["CERRAJERÍA Y SEGURIDAD",3036,"CORREDERA TELESCÓPICA 10\" (250MM) LECCO REF: RJ250409L4","3036"],["FERRETERÍA GENERAL Y ACCESORIOS",3501,"JUEGO DE RUEDA RUOTA 4PCS REF: 41544 MARCA NICEIDEAL","7800678415440"],["FERRETERÍA GENERAL Y ACCESORIOS",3502,"SUJETADORES POSTES PARA BARRA DE ACERO DE CORTINA MARCA H Y N ACCESORIOS DE CORTINA","8536559053249"],["FERRETERÍA GENERAL Y ACCESORIOS",3503,"SOPORTES PARA BARRA DE ACERO DE CORTINA MARCA H Y N ACCESORIOS DE CORTINA","8536559053218"],["FERRETERÍA GENERAL Y ACCESORIOS",3504,"CINTILLO DE NAILON 4.8*250 MM BLANCO CUBULL","3504"],["FERRETERÍA GENERAL Y ACCESORIOS",3505,"CINTILLO DE NAILON 4.8*2OO MM BLANCO CUBULL","3505"],["FERRETERÍA GENERAL Y ACCESORIOS",3506,"CINTILLO DE NAILON 4.8*300 MM NEGRO CUBULL","3506"],["FERRETERÍA GENERAL Y ACCESORIOS",3507,"CINTILLO DE NAILON 7.6*300 MM NEGRO CUBULL","3507"],["FERRETERÍA GENERAL Y ACCESORIOS",3508,"CINTILLO DE NAILON 3.6*300 MM BLANCO PORTIZA","3508"],["FERRETERÍA GENERAL Y ACCESORIOS",3509,"CINTA PIPEGAR 24MMX5YD UYUSTOOLS REF: CIY024","6931598223271"],["FERRETERÍA GENERAL Y ACCESORIOS",3510,"CINTA MASKING DE 1´´ DE 15 YDS PANDA","3510"],["FERRETERÍA GENERAL Y ACCESORIOS",3511,"CINTA PARA PINTAR CELLUX ENMASCARAR AZUL CONSTRUCCION ARQUITECTONICA-CONSTRUCCION REF: C-576 40 YARDAS X 2´´","7701633041974"],["FERRETERÍA GENERAL Y ACCESORIOS",3512,"CINTA MASKIN TAPE 14 DÍAS AZUL PARA PINTAR 2´´X40YDS SHURTAPE","7751690143487"],["FERRETERÍA GENERAL Y ACCESORIOS",3513,"CINTA AMARILLA AUTOMOTRIZ 1´´X40YDS MX MEXICO ATOM REF:CAZ2004AT","7506385385457"],["FERRETERÍA GENERAL Y ACCESORIOS",3514,"CINTA MASKING DE 1/2´´ X40YDS TRIBU","390200121"],["FERRETERÍA GENERAL Y ACCESORIOS",3515,"CINTA TEFLÓN C&A 1/2 ´´X0.075X10MTS","3515"],["FERRETERÍA GENERAL Y ACCESORIOS",3516,"JUEGO DE BROCHAS DE 3PCS INGCO 2´´X50MM,3´´X75MM","3516"],["FERRETERÍA GENERAL Y ACCESORIOS",3517,"CINTA DE EMBALAJE DE 2´´ GENERICO AMISTAD","3517"],["FERRETERÍA GENERAL Y ACCESORIOS",3518,"TRAMPA PARA RATONES PEQUEÑO GENERICO","3518"],["FERRETERÍA GENERAL Y ACCESORIOS",3519,"PAPEL FILM STRECH TRANSPARANTE PARA EMBALAR 18´´ GENERICO","3519"],["FERRETERÍA GENERAL Y ACCESORIOS",3520,"PAPEL FILM STRECH TRANSPARANTE PARA EMBALAR 20´´ GENERICO","3520"],["FERRETERÍA GENERAL Y ACCESORIOS",3521,"PAPEL FILM STRECH TRANSPARANTE PARA EMBALAR 9´´ GENERICO","3521"],["FERRETERÍA GENERAL Y ACCESORIOS",3522,"PAPEL FILM STRECH TRANSPARANTE PARA EMBALAR 6´´ GENERICO","3522"],["FERRETERÍA GENERAL Y ACCESORIOS",3523,"PAR DE PILAS AAA2 ENERGIZER MAX REF: 0425GB7","039800014009"],["FERRETERÍA GENERAL Y ACCESORIOS",3524,"PEGAMENTO INSTANTANEO TR!Z TRIZ 3G","7750472016926"],["FERRETERÍA GENERAL Y ACCESORIOS",3525,"RUEDA INDUSTRIAL NARANJA #1 SIN FRENO",""],["FERRETERÍA GENERAL Y ACCESORIOS",3526,"RUEDA INDUSTRIAL NARANJA #2 SIN FRENO",""],["FERRETERÍA GENERAL Y ACCESORIOS",3527,"RUEDA INDUSTRIAL NARANJA #3 SIN FRENO",""],["FERRETERÍA GENERAL Y ACCESORIOS",3528,"SILICONA TRANSPARANTE MULTIUSOS ANTIHONGOS KNAUFF 50G","3528"],["FERRETERÍA GENERAL Y ACCESORIOS",3529,"SILICONA PARA MOTOR MEGAS GRAY NOBLEZA HCA","6972456540017"],["FERRETERÍA GENERAL Y ACCESORIOS",3530,"PAR DE PEGAMENTOS ÉPOXICOS ESPECIALIZADOS EN METALES EXTRA FUERTE SOLDI MIX A Y B","7750472000444"],["FERRETERÍA GENERAL Y ACCESORIOS",3531,"SELLADOR ADHESIVO Y FLEXIBLE SICA SICAFLEX GRIS HORMIGON 300ML/390G","7612895921600"],["FERRETERÍA GENERAL Y ACCESORIOS",3532,"SELLADOR SILICONA PARA VIDRIO SICA SICASIL TRANSPARENTE/NEGRO 280ML/274G","7756962003520"],["FERRETERÍA GENERAL Y ACCESORIOS",3533,"SELLADOR PARA BAÑOS Y COCINA TRANSLUCIDO 85G TRUPER REF:18567","7501206650509"],["FERRETERÍA GENERAL Y ACCESORIOS",3534,"SILICONA PROTECTOR UV3 SIMONIZ FRESA 300ML","3534 (FALTA PONER)"],["FERRETERÍA GENERAL Y ACCESORIOS",3535,"SILICONA WHITE CON PROTECCIÓN UV VISTONY 300 ML","3535 (TALVEZ TENGA)"],["FERRETERÍA GENERAL Y ACCESORIOS",3536,"RUEDA INDUSTRIAL NARANJA #4 SIN FRENO",""],["FERRETERÍA GENERAL Y ACCESORIOS",3537,"RUEDA INDUSTRIAL NARANJA #1 CON FRENO",""],["FERRETERÍA GENERAL Y ACCESORIOS",3538,"RUEDA INDUSTRIAL NARANJA #2 CON FRENO",""],["FERRETERÍA GENERAL Y ACCESORIOS",3539,"RUEDA INDUSTRIAL NARANJA #3 CON FRENO",""],["FERRETERÍA GENERAL Y ACCESORIOS",3540,"RUEDA INDUSTRIAL NARANJA #4 CON FRENO",""],["FERRETERÍA GENERAL Y ACCESORIOS",3541,"CINTA AISLANTE 3M TEMFLEX165 19MM 18 METROS (NEGRO)","076308925680"],["FERRETERÍA GENERAL Y ACCESORIOS",3542,"CINTA AISLANTE 20 YARDAS- DLUCAS","3542"],["FERRETERÍA GENERAL Y ACCESORIOS",3543,"CINTA TEMFLEX DE PVC 3M 155 20YD","638060414941"],["TORNILLERÍA Y FIJACIÓN",4001,"TORNILLO DE ANCLAJE 9X49MMX2UNDMARCA STANDERS X2 L100MM","3276000343462"],["TORNILLERÍA Y FIJACIÓN",4002,"GRAPAS P/PARED 7MM CANTIDAD 100 UDS TOOLWARE BOLSA","3503"],["TORNILLERÍA Y FIJACIÓN",4003,"GRAPAS P/PARED 8MM CANTIDAD 100 UDS TOOLWARE BOLSA","0000000002598"],["TORNILLERÍA Y FIJACIÓN",4004,"GRAPAS P/PARED 6MM CANTIDAD 100 UDS TOOLWARE BOLSA","0000000002560"],["TORNILLERÍA Y FIJACIÓN",4005,"BECOSH GERMANYGRAPAS PARA CONDUCTORES ELECTRICOS CON CLAVOS DE ACERO P/CONCRETO #8","3505"],["TORNILLERÍA Y FIJACIÓN",4006,"GRAPAS PARA CONCRETO #12 RIMEPLAST","3506"],["SEGURIDAD Y PROTECCIÓN PERSONAL (EPP)",5001,"MONOGAFAS VENTILACION INDIRECTA AF CLARO /TRANSPARENTE STEELPRO SAFETY","7799045039672"],["SEGURIDAD Y PROTECCIÓN PERSONAL (EPP)",5002,"LENTES DE SEGURIDAD SEGPRO SP100","5002"],["SEGURIDAD Y PROTECCIÓN PERSONAL (EPP)",5003,"LENTES DE SEGURIDAD GENERICO SIMPLE TRANSPARENTE GOMAS NARANJA","5003"],["ARTÍCULOS PARA EL HOGAR",5501,"CARTEL DE SEÑALIZACÍON (SALIDA DE EMERGENCIA DERECHA) NICEIDEAL","7800678426149"],["ARTÍCULOS PARA EL HOGAR",5502,"CARTEL DE SEÑALIZACÍON (PRECAUCION CORRIENTE ELECTRICA) NICEIDEAL","7800678426125"],["ARTÍCULOS PARA EL HOGAR",5503,"CARTEL DE SEÑALIZACÍON (ZONA VIGILADA CON SISTEMA DE SEGURIDAD) NICEIDEAL","7800678426132"],["ARTÍCULOS PARA EL HOGAR",5504,"CARTEL DE SEÑALIZACÍON (EXTINTOR) NICEIDEAL","7800678426163"],["ARTÍCULOS PARA EL HOGAR",5505,"CARTEL DE SEÑALIZACÍON (SALIDA DE EMERGENCIA IZQUIERDA) NICEIDEAL","7800678426156"],["ARTÍCULOS PARA EL HOGAR",5506,"CARTEL DE SEÑALIZACÍON (PROHIBIDO FUMAR) NICEIDEAL","7800678426064"],["ARTÍCULOS PARA EL HOGAR",5507,"CARTEL DE SEÑALIZACÍON (PROHIBIDO EL INGRESO DE ANIMALES) NICEIDEAL","7800678426071"],["ARTÍCULOS PARA EL HOGAR",5508,"CARTEL DE SEÑALIZACÍON (WC BAÑO) NICEIDEAL","7800678426118"],["ARTÍCULOS PARA EL HOGAR",5509,"CARTEL DE SEÑALIZACÍON PEQUEÑO (PROHIBIDO FUMAR) NICEIDEAL","7800678426057"],["ARTÍCULOS PARA EL HOGAR",5510,"CARTEL DE SEÑALIZACÍON PEQUEÑO (ZONA WIFI GRATUITA) NICEIDEAL","7800678426040"],["ARTÍCULOS PARA EL HOGAR",5511,"CARTEL DE SEÑALIZACÍON PEQUEÑO (BAÑO) NICEIDEAL","7800678426194"],["ARTÍCULOS PARA EL HOGAR",5512,"CERA SILICONADA AUTO BRILLANTE LITRO ZACALE","5512"],["ARTÍCULOS PARA EL HOGAR",5513,"SODA LIQUIDA ZACALE","5513"],["ARTÍCULOS PARA EL HOGAR",5514,"ACIDO DOMESTICO ZACALE","5514"],["ARTÍCULOS PARA EL HOGAR",5515,"KRESO AMERICANO AN INDUSTRIAL WITCEL 1/2LTR","5515"],["ARTÍCULOS PARA EL HOGAR",5516,"QUITA OXIDO AN INDUSTRIAL WITCEL 1/2 LTR","5516"],["ARTÍCULOS PARA EL HOGAR",5517,"ACIDO INDUSTRIAL CONCENTRACION ALTA Y EFICAZ PRINCESA","777424000036"],["ARTÍCULOS PARA EL HOGAR",5518,"POTASA CAUSTICA REMOVEDOR DE OXIDO Y PARA LAVADO DE GRASAS AN INDUSTRIA WITCEL 1KG","5518"],["ARTÍCULOS PARA EL HOGAR",5519,"MOCHILA FUMIGADORA 20LITROS CASCO","383250826"],["ARTÍCULOS PARA EL HOGAR",5520,"ESTANTE PARA INODORO N0. TM-0090","5520"],["ARTÍCULOS PARA EL HOGAR",5521,"CERA SILICONADA ROJA GALON FORMULA EPOXICA PRINCESA","7755592000107"],["ARTÍCULOS PARA EL HOGAR",5522,"CERA ROJA AUTOBRILLANTE SILICONADA SELLADORA GALON PRODUCTOS DEL REY","7757424002236"],["ARTÍCULOS PARA EL HOGAR",5523,"CERA SILICONADA MULTICOLOR AUTO BRILLANTE GALON ZACALE","5901234123457"],["ARTÍCULOS PARA EL HOGAR",5524,"CERA PARQUET SILICONADA GALON PRINCESA","7755592000107"],["ARTÍCULOS PARA EL HOGAR",5525,"TERMO (TAZA DE VACIO) DE 800 ML VACUUM CUP","5525"],["ARTÍCULOS PARA EL HOGAR",5526,"TERMO(A) 32 OZ/950ML CON AISAMIENTO DE DOBLE PARED","5526"],["ARTÍCULOS PARA EL HOGAR",5527,"TERMO DE 300ML DIYI VACUUM CUP HOT OR COLD REF:6942259200500","6942259200500"],["ARTÍCULOS PARA EL HOGAR",5528,"TERMO DE 24OZ/720ML VACUUM BOTTLE DRINKS HOT OR COLD","5528"],["ARTÍCULOS PARA EL HOGAR",5529,"VASO TERMO CON ESTAMPADO DE JARDIN DIYIYINXIANG 528ML REF:DY-BW1161","6942259202757"],["ARTÍCULOS PARA EL HOGAR",5530,"RECOGEDOR DE BASURA GENERICO","5530"],["ARTÍCULOS PARA EL HOGAR",5531,"CORTINA DE BAÑO PEVA 70IN. X 72IN","1301640025804"],["ARTÍCULOS PARA EL HOGAR",5532,"CORTINAS CHANTUN PARA DORMITORIOS 140X240CM 55\"X94\" ITEM NO: 130246","1302462507311234586"],["ARTÍCULOS PARA EL HOGAR",5533,"VASO TERMO LILY OF THE VALLEY 500ML REF:DY-BW1161 MANTIENE LA TEMPERATURA","5533"],["ARTÍCULOS PARA EL HOGAR",5534,"RECOGEDOR DE BASURA MARCA DAYR OLIMPIA BIG DUST PAN","775843600363"],["ARTÍCULOS PARA EL HOGAR",5535,"TAZA DE CAFE DE VIAJE COFFEE MANTIENE LA TEMPERATURA","5535"],["ARTÍCULOS PARA EL HOGAR",5536,"MOPA DE ALGODÓN 230GR REY PLAST","5536"],["ARTÍCULOS PARA EL HOGAR",5537,"MOPA DE ALGODÓN GENERICO","5537"],["ARTÍCULOS PARA EL HOGAR",5538,"LIMPIA VIDIRIOS 20CM ANCHO HUDE","7750160110219"],["ARTÍCULOS PARA EL HOGAR",5539,"HISOPO ESTRELLA HUDE","7750160418513"],["ARTÍCULOS PARA EL HOGAR",5540,"ALFOMBRA DE PISO PARA LA PUERTA NICEIDEAL MULTICOLOR CON DORADO RAYO REF: 70442","7800678704421"],["ARTÍCULOS PARA EL HOGAR",5541,"ALFOMBRA DE PISO PARA LA PUERTA NICEIDEAL MULTICOLOR CON RAYAS MULTICOLOR REF: 18191","7800678181918"],["ARTÍCULOS PARA EL HOGAR",5542,"ALFOMBRA DE PISO PARA LA PUERTA NICEIDEAL DISEÑO CON ESCAMAS MULTICOLOR REF:11359","7800678704421"],["ARTÍCULOS PARA EL HOGAR",5543,"CORTINA TODO DIA 140X240CM 100% POLYESTER","8536559165744"],["ARTÍCULOS PARA EL HOGAR",5544,"CORTINA PARA BAÑO DE PEVA 180CM X 180CM 12 AROS DE PLASTICO","7800678704650"],["ARTÍCULOS PARA EL HOGAR",5545,"MACETA DURA KOTTA REDONDA #10 9.8L REY PLAST","7750062007921"],["ARTÍCULOS PARA EL HOGAR",5546,"MACETA ROBLE CON BASE REY PLAST #3","7750062002940"],["ARTÍCULOS PARA EL HOGAR",5547,"MACETA DURA KOTTA REDONDA #6 CON PLATO REY PLAST","7750062007907"],["ARTÍCULOS PARA EL HOGAR",5548,"VASO CON PAJITA DE DOBLE PARED ROSA (TUMPER) GENERICO","5048"],["ARTÍCULOS PARA EL HOGAR",5549,"TOMATODO GRANDE CHEFF DE 2000ML GENERICO CHFE","6926186512028"],["ARTÍCULOS PARA EL HOGAR",5550,"MACETA DE PLASTICO REDONDA CON UN PATRON DE TEJIDO DE MIMBRE","100577250809192205"],["ARTÍCULOS PARA EL HOGAR",5551,"ALFOMBRA DE PISO PARA LA PUERTA NICEIDEAL MULTICOLOR CON PATITAS REF: 11359","7800678113599"],["ARTÍCULOS PARA EL HOGAR",5552,"RECOGEDOR TIBURON PROLIMSO EXTRA GRANDE","0745853502294"],["ARTÍCULOS PARA EL HOGAR",5553,"LONCHERA ESCOLAR NIÑOS TENEDOR + CUCHARA 3 DIVISIONES","6926429790527"],["ARTÍCULOS PARA EL HOGAR",5554,"LONCHERA DE ASTRONAUTA SET DE VIANDA Y BOTELLA HERMETICA TRENDY EXPLORACION A MARTE","5554"],["ARTÍCULOS PARA EL HOGAR",5555,"DAYR JALADOR URUGUAYO 40CM","7758436002794"],["ARTÍCULOS PARA EL HOGAR",5556,"DAYRJALADOR URUGUAYO DE 50 CM","7758436002817"],["ARTÍCULOS PARA EL HOGAR",5557,"JALADOR DE AGUA GENERICO PERU DE 40 CM","5557"],["ARTÍCULOS PARA EL HOGAR",5558,"ESCOBA/ ESCOBILLON TUMBADORA NACIONAL CODIASAC","5558"],["ARTÍCULOS PARA EL HOGAR",5559,"ESCOBA/ ESCOBILLON ESCOBASA EXTRAGRANDE DAYR","7758436004811"],["ARTÍCULOS PARA EL HOGAR",5560,"ESCOBA/ ESCOBILLON SUPER CHINITA DAYR","7758436003159"],["ARTÍCULOS PARA EL HOGAR",5561,"ESCOBA/ ESCOBILLON MULTIUSOS LAVA BUS DAYR","7758436005092"],["ARTÍCULOS PARA EL HOGAR",5562,"ESCOBA/ ESCOBILLON HOGAREÑA HUDE NACIONAL","7750160802763"],["ARTÍCULOS PARA EL HOGAR",5563,"ESCOBA/ ESCOBILLON NUEVA GLORINDA","5563"],["ARTÍCULOS PARA EL HOGAR",5564,"ESCOBA/ ESCOBILLON LAVATODO HUDE","7750160110202"],["ARTÍCULOS PARA EL HOGAR",5565,"URPI PLAST PAPELERA APU CON PEDAL #12","P024"],["ARTÍCULOS PARA EL HOGAR",5566,"PAPELERA MARCA YANG 100533 CON PEDAL Y BOTON PUSH","1005331234567"],["ARTÍCULOS PARA EL HOGAR",5567,"JARRA REPOSTERA REY 2 L C/ TAPA JRX044000","7750062028162"],["ARTÍCULOS PARA EL HOGAR",5568,"EXPRIMIDOR GIGANTE CON TAPA 1.33L EPX002000","7750062199251"],["ARTÍCULOS PARA EL HOGAR",5569,"ESCOBA/ ESCOBILLON SUPER REY REY PLAST","7750062024492"],["ARTÍCULOS PARA EL HOGAR",5570,"MACETA PLASTICA REDONDA DE COLOR LISO CON DISEÑO GENERICO","10057250809191902"],["ARTÍCULOS PARA EL HOGAR",5571,"BALDE COMERCIAL 1 GAL C/ TAPA Y ASA DE METAL REY PLAST","7750062227374"],["ARTÍCULOS PARA EL HOGAR",5572,"BALDE COMERCIAL 2 GAL C/ TAPA COMERCIAL Y ASA DE METAL REY PLAST","7750062216187"],["ARTÍCULOS PARA EL HOGAR",5573,"BALDE COMERCIAL 12 L C/ TAPA, ASA DE METAL Y CAÑO REY PLAST","7750062026458"],["ARTÍCULOS PARA EL HOGAR",5574,"BALDE REY FORTE 11L CON ASA DE METAL","7750062026267"],["ARTÍCULOS PARA EL HOGAR",5575,"REY PLAST RECOGEDOR SÚPER REY REX006200","7750062030264"],["ARTÍCULOS PARA EL HOGAR",5576,"VIRTUALMENTE IRROMPIBLE 3.1 L BASA BCLEAR","7755206028022"],["ARTÍCULOS PARA EL HOGAR",5577,"VIRTUALMENTE IRROMPIBLE 1.1 L BASA BCLEAR","7755206028008"],["ARTÍCULOS PARA EL HOGAR",5578,"BALDE 13 L C/ PICO Y ASA DE METAL REY PLAST","7750062200032"],["ARTÍCULOS PARA EL HOGAR",5579,"SEAL LOOCK 2WAY CONTAINER DOUBLE HB2376L","5579"],["ARTÍCULOS PARA EL HOGAR",5580,"TABLA DE MADERA PARA PICAR REDONDA DE 25CM","8536559142844"],["ARTÍCULOS PARA EL HOGAR",5581,"TABLA DE MADERA PARA PICAR RECTANGULAR CON ASA DE METAL DE 34CM","8536559142783"],["ARTÍCULOS PARA EL HOGAR",5582,"BANQUETA BANCO PEGABLE CAMPING PLASTICO REFORZADO","9985868866399"],["ARTÍCULOS PARA EL HOGAR",5583,"PAPELERA COSMOS # 20 C/ TAPA REY PLAST REF: PPX019500","775006263"],["ARTÍCULOS PARA EL HOGAR",5584,"PAPELERA CALADA ROMA REY PLAST","7750062508077"],["ARTÍCULOS PARA EL HOGAR",5585,"CESTITO PALERMO REY PLAST REF: PPX024500","7750062030752"],["ARTÍCULOS PARA EL HOGAR",5586,"PAPELERA CALADA VENECIA REY PLAST REF:PPX024000","7750062696729"],["ARTÍCULOS PARA EL HOGAR",5587,"CESTO TINTAY #2 COLOR SOLIDO DE PLASTICO JOR PLAST","7758127000566"],["ARTÍCULOS PARA EL HOGAR",5588,"PAPELERA AUTOMATICA STAR REY PLAST REF: PPX802600","7750062028964"],["ARTÍCULOS PARA EL HOGAR",5589,"CESTO TINTAY #1 COLOR SOLIDO DE PLASTICO JOR PLAST","7758127000573"],["ARTÍCULOS PARA EL HOGAR",5590,"CESTA NADINE GRANDE CTX026200 REY PLAST","7750062009772"],["ARTÍCULOS PARA EL HOGAR",5591,"CESTA NADINE JUNIOR CTX028000 REY PLAST","7750062012161"],["ARTÍCULOS PARA EL HOGAR",5592,"CESTO MODELO RATÁN GRANDE REYPLAST 60 L CTX250000","7750062014417"],["ARTÍCULOS PARA EL HOGAR",5593,"CESTO KHIPU 60L CTX033000 REY PLAST","7750062020708"],["ARTÍCULOS PARA EL HOGAR",5594,"CESTO BOREAL CTX031000","7750062017999"],["ARTÍCULOS PARA EL HOGAR",5595,"JORPLAST CESTO MEDIANO LIBRE BPA ANCHO 54CM X 40CM LARGO",""],["ARTÍCULOS PARA EL HOGAR",5596,"CESTO REDONDO CON TAPA OREJON BM PLAST 0781100116494","781100116494"],["ARTÍCULOS PARA EL HOGAR",5597,"CESTO DE ROPA TULIPAN GRANDE CON TAPA URPI PLAST","C034"],["ARTÍCULOS PARA EL HOGAR",5598,"CAJA MEGABOX BEAUTY 9.1L CJX965600","7750062028452"],["ARTÍCULOS PARA EL HOGAR",5599,"SET DE LIMPIEZA KUBOX BASA HOGAR 16.5L","7755206003715"],["ARTÍCULOS PARA EL HOGAR",5600,"CAJA DE HERRAMIENTAS REYPLAST MEGA BOX 16\" REF:CJX009000","750062005491"],["ARTÍCULOS PARA EL HOGAR",5601,"RECOGEDOR DE BASURA FABARLI SUPER LIDER GRANDE CON GOMA","5601"],["ARTÍCULOS PARA EL HOGAR",5602,"TAPETE BIENVENIDOS GRANDE DE 120CMX30",""],["ARTÍCULOS PARA EL HOGAR",5603,"CUADRO DE 21 X29.7CM DORADO","8536559166666"],["ARTÍCULOS PARA EL HOGAR",5604,"CUADRO DE 21 X29.7CM PLATEADO","8536559166543"]];
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+/* ---------- texto ---------- */
+const norm = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase()
+  .replace(/´´|''|”|“|¨/g, '"').replace(/PULGADAS?/g, '"')
+  .replace(/[^A-Z0-9/".,]+/g, " ").replace(/(\d),(\d)/g, "$1.$2").replace(/[,]/g, " ").trim();
+const tokens = s => norm(s).split(/\s+/).filter(Boolean).flatMap(t => {
+  const p = t.match(/\d+(?:[./]\d+)*"?|[A-Z"]+/g) || [t];   // "3/4"BREMEN" -> ["3/4"", "BREMEN"]
+  return p.length > 1 ? [t, ...p] : [t];
+});
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- códigos de barras ---------- */
+const SAMPLE = new Set(["5901234123457"]);
+function gs1(t){
+  if(![8,12,13,14].includes(t.length)) return false;
+  let s = 0; const body = t.slice(0,-1).split("").reverse();
+  body.forEach((c,i) => s += (+c) * (i % 2 === 0 ? 3 : 1));
+  return (10 - s % 10) % 10 === +t.slice(-1);
+}
+function bcInfo(raw){
+  const t = String(raw ?? "").replace(/[-\s]/g, "");
+  if(!t) return {v:"", kind:"none", label:"Sin código", cls:"warn"};
+  if(!/^\d+$/.test(t)) return {v:t, kind:"bad", label:"Ilegible", cls:"bad", note:`El código anotado («${raw}») no es un código de barras. Escanéalo de nuevo.`};
+  if(SAMPLE.has(t)) return {v:t, kind:"bad", label:"Código falso", cls:"bad", note:"5901234123457 es el código de ejemplo de los generadores; no es del producto. Escanéalo de nuevo."};
+  if(+t < 100000) return {v:String(+t), kind:"prov", label:"Provisional", cls:"warn", note:"No tiene código de fabricante: en el antiguo se anotó un número provisional."};
+  for(const c of [t, "0"+t, t.replace(/^0+/,"")]) if(gs1(c)) return {v:c, kind:"ok", label:"Fabricante", cls:"ok",
+      note: c !== t && c === "0"+t ? `Se le devolvió el 0 inicial que Excel había quitado (${t} → ${c}).` : null};
+  return {v:t, kind:"bad", label:"Revisar", cls:"bad", note:`El código tiene ${t.length} dígitos y su dígito de control no cuadra: probablemente se tipeó mal. Compáralo escaneando el producto.`};
+}
+
+/* ---------- datos ---------- */
+let DB = [], CATS = [], dupIndex = new Map(), sourceName = "inventario antiguo";
+function load(rows, name){
+  sourceName = name;
+  DB = rows.map((r, i) => {
+    const [cat, code, name, bcraw] = r;
+    const bc = bcInfo(bcraw);
+    return {id: cat + "|" + (code ?? "") + "|" + name, i, cat, code: code ?? "", name, bc,
+            n: norm(name), toks: tokens(name), codeS: String(code ?? "")};
+  });
+  CATS = [...new Set(DB.map(d => d.cat))];
+  dupIndex = new Map();
+  DB.forEach(d => { if(d.bc.kind === "ok" || d.bc.kind === "bad"){ const a = dupIndex.get(d.bc.v) || []; a.push(d); dupIndex.set(d.bc.v, a); }});
+  state.cat = "TODAS"; state.sel = 0;
+  byId = new Map(DB.map(d => [d.id, d]));
+  picked = new Map(); for(const [id, v] of store.get("a30-lista", [])) if(byId.has(id)) picked.set(id, v);
+  renderCats(); search(); renderTray();
+  $("#srcinfo").innerHTML = `Cargado: <b>${esc(name)}</b> · ${DB.length} productos en ${CATS.length} categorías`;
+}
+
+/* ---------- Excel subido: detecta código, nombre y código de barras en cada hoja ---------- */
+const HEADER = /^(UND|CANTIDAD|BARRAS|QR|NAME|N°|COLUMNA \d+|CODIGO.*|NOMBRE.*|COST.*|P\. .*|PRECIO.*|FLETE|GANANCIA|TOT GAN|C)$/;
+function parseWorkbook(wb){
+  const out = [];
+  wb.SheetNames.forEach(sn => {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], {header:1, raw:true, defval:null});
+    let bcCol = -1;
+    for(const r of rows.slice(0, 15)){
+      const k = r.findIndex(v => typeof v === "string" && /BARRA|^\s*QR\s*$/i.test(v));
+      if(k >= 0){ bcCol = k; break; }
+    }
+    rows.forEach(r => {
+      const ni = r.findIndex(v => typeof v === "string" && (v.match(/[A-Za-zÁÉÍÓÚÑáéíóúñ]/g) || []).length >= 3 && !HEADER.test(norm(v)));
+      if(ni < 0) return;
+      if(r.some(v => typeof v === "string" && /COST UNIT|CODIGO DE BARRAS|nombre de los productos/i.test(v))) return;
+      let code = null;
+      for(let j = ni - 1; j >= 0; j--){ const n = Number(r[j]); if(r[j] !== null && r[j] !== "" && Number.isFinite(n) && n > 0 && Number.isInteger(n)){ code = n; break; } }
+      let bc = null;
+      if(bcCol > ni) bc = r[bcCol];
+      else for(let j = ni + 1; j < r.length; j++){ const v = r[j]; if(v === null || v === "" || norm(v) === "UND") continue; bc = v; break; }
+      if(typeof bc === "number") bc = Number.isInteger(bc) ? String(bc) : bc.toFixed(0);
+      if(code === null && (bc === null || bc === "")) return;   // títulos de categoría, rangos, filas vacías
+      let name = String(r[ni]).replace(/\s+/g, " ").trim();
+      if(code !== null){ const m = name.match(/\s(\d{3,4})$/); if(m && +m[1] === code) name = name.slice(0, m.index).trim(); }
+      out.push([sn.trim().toUpperCase(), code, name.toUpperCase(), bc ?? ""]);
+    });
+  });
+  return out;
+}
+$("#file").addEventListener("change", e => {
+  const f = e.target.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = ev => {
+    try{
+      const wb = XLSX.read(ev.target.result, {type:"array"});
+      const rows = parseWorkbook(wb);
+      if(!rows.length){ toast("No encontré productos en ese archivo. Revisa que tenga una columna con los nombres."); return; }
+      load(rows, f.name); toast(`Listo: ${rows.length} productos leídos de ${f.name}`);
+    }catch(err){ toast("No pude leer ese archivo. Guárdalo como .xlsx y vuelve a intentarlo."); }
+  };
+  rd.readAsArrayBuffer(f); e.target.value = "";
+});
+
+/* ---------- búsqueda ---------- */
+const state = {cat:"TODAS", sel:0, results:[]};
+let done = new Set(store.get("a30-copiados", []));
+function lev1(a, b){ // distancia ≤ 1 (un error de tipeo)
+  if(Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, e = 0;
+  while(i < a.length && j < b.length){
+    if(a[i] === b[j]){ i++; j++; continue; }
+    if(++e > 1) return false;
+    if(a.length > b.length) i++; else if(b.length > a.length) j++; else { i++; j++; }
+  }
+  return e + (a.length - i) + (b.length - j) <= 1;
+}
+function scoreItem(d, qt, qraw){
+  let s = 0;
+  if(/^\d+$/.test(qraw)){
+    if(d.codeS === qraw) s += 1000;
+    if(d.bc.v === qraw || d.bc.v === "0" + qraw || d.bc.v.replace(/^0+/, "") === qraw.replace(/^0+/, "")) s += 2000;
+    else if(qraw.length >= 5 && d.bc.v.includes(qraw)) s += 300;
+  }
+  let miss = 0;
+  for(const q of qt){
+    let best = 0;
+    for(const t of d.toks){
+      if(t === q){ best = 3; break; }
+      if(/^\d/.test(q)) continue;               // medidas y números: solo coincidencia exacta
+      if(t.startsWith(q)) best = Math.max(best, 2);
+      else if(q.length >= 3 && t.includes(q)) best = Math.max(best, 1.2);
+      else if(q.length >= 4 && lev1(q, t)) best = Math.max(best, 1);
+    }
+    if(!best && /^\d/.test(q) && d.n.includes(q)) best = 0.8;
+    if(!best) miss++;
+    s += best;
+  }
+  if(qt.length && miss > (qt.length >= 3 ? 1 : 0)) return s >= 1000 ? s : 0;
+  return s - miss * 2;
+}
+function search(){
+  const qraw = $("#q").value.trim();
+  const qdig = qraw.replace(/[-\s]/g, "");
+  const pool = state.cat === "TODAS" ? DB : DB.filter(d => d.cat === state.cat);
+  if(!qraw){
+    state.results = pool.slice().sort((a, b) => (done.has(a.id) - done.has(b.id)) || 0).slice(0, 200);
+    $("#count").textContent = state.cat === "TODAS" ? "Escribe para buscar. Abajo, los que aún no pasas." : `${state.cat}: primero los que faltan pasar`;
+  } else {
+    const qt = tokens(qraw), isNum = /^\d+$/.test(qdig);
+    state.results = pool.map(d => [d, scoreItem(d, isNum ? [] : qt, isNum ? qdig : "")])
+      .filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 60).map(x => x[0]);
+    $("#count").textContent = state.results.length ? `${state.results.length === 60 ? "60+" : state.results.length} coincidencias` : "";
+  }
+  state.sel = 0; renderList(qraw);
+  // escáner: si el código de barras coincide exacto con un solo producto, se selecciona solo
+  renderDetail();
+}
+function highlight(name, qraw){
+  if(!qraw || /^\d+$/.test(qraw.replace(/[-\s]/g, ""))) return esc(name);
+  const qs = tokens(qraw).filter(q => q.length >= 2).sort((a, b) => b.length - a.length);
+  const N = norm(name);
+  if(N.length !== name.length) return esc(name);  // si cambia la longitud no se resalta
+  const marks = new Array(name.length).fill(false);
+  qs.forEach(q => { let k = N.indexOf(q); while(k >= 0){ for(let i = k; i < k + q.length; i++) marks[i] = true; k = N.indexOf(q, k + 1); }});
+  let html = "", open = false;
+  for(let i = 0; i < name.length; i++){
+    if(marks[i] && !open){ html += "<mark>"; open = true; }
+    if(!marks[i] && open){ html += "</mark>"; open = false; }
+    html += esc(name[i]);
+  }
+  return html + (open ? "</mark>" : "");
+}
+function renderList(qraw){
+  const L = $("#list");
+  if(!state.results.length){
+    updateAddAll();
+    L.innerHTML = `<div class="empty">No encontré «${esc(qraw)}». Prueba con menos palabras, solo la marca o la medida (ej. <b>bremen 3/4</b>).<br>Si es un producto nuevo, no está en el inventario antiguo: anótalo directo en tu hoja.</div>`;
+    return;
+  }
+  L.innerHTML = state.results.map((d, k) => `
+    <div class="item${k === state.sel ? " sel" : ""}${done.has(d.id) ? " done" : ""}" role="option" aria-selected="${k === state.sel}" data-k="${k}" style="${catStyle(d.cat)}">
+      <button type="button" class="pick" role="checkbox" aria-checked="${picked.has(d.id)}" aria-label="Agregar a la lista para copiar" title="Agregar a la lista">${picked.has(d.id) ? "✓" : "+"}</button>
+      <span class="code">${esc(d.code)}</span>
+      <span style="min-width:0"><span class="nm">${highlight(d.name, qraw)}</span>
+        <span class="meta"><span class="cat" style="${catStyle(d.cat)}">${esc(d.cat)}</span><span class="bc">${esc(d.bc.v || "—")}</span></span></span>
+      <span>${done.has(d.id) ? '<span class="pill done">ya pasado</span>' : `<span class="pill ${d.bc.cls}">${d.bc.label}</span>`}</span>
+    </div>`).join("");
+  updateProgress(); updateAddAll();
+}
+$("#list").addEventListener("click", e => {
+  const it = e.target.closest(".item"); if(!it) return;
+  if(e.target.closest(".pick")){ togglePick(state.results[+it.dataset.k]); return; }
+  state.sel = +it.dataset.k; markSel(); renderDetail();
+});
+function markSel(){
+  document.querySelectorAll(".item").forEach((el, k) => { el.classList.toggle("sel", k === state.sel); el.setAttribute("aria-selected", k === state.sel); });
+  const el = document.querySelector(".item.sel"); if(el) el.scrollIntoView({block:"nearest"});
+}
+
+/* ---------- ficha y copiado ---------- */
+/* Estructura de las hojas de la tienda — la fila se copia SIEMPRE en este orden */
+const HEAD = ["Codigo unico en la tienda", "nombre de los productos", "UND", "Codigo de barras", "precio por unidad", "precio por mayor"];
+const FIELDS = ["f-code", "f-name", "f-und", "f-bc", "f-pu", "f-pm"];
+const kept = {};
+let useCode = store.get("a30-usar-codigo", true);
+const pasteCol = () => useCode ? "«Codigo unico en la tienda»" : "«nombre de los productos»";
+const outVals = v => useCode ? v : v.slice(1);        // con NO, la fila empieza en el nombre
+const outHead = () => useCode ? HEAD : HEAD.slice(1);
+function applyCodeMode(){
+  $("#code-on").setAttribute("aria-pressed", useCode); $("#code-off").setAttribute("aria-pressed", !useCode);
+  document.body.classList.toggle("nocode", !useCode);
+  $("#csexplain").innerHTML = useCode
+    ? "Se copia el código del inventario antiguo (puedes cambiarlo antes de copiar). Pega en la columna <b>Codigo unico en la tienda</b>."
+    : "No se copia el código: tu hoja nueva ya tiene su propia numeración. Pega en la columna <b>nombre de los productos</b>, a la derecha de tu código.";
+  renderPreview(); renderTray();
+}
+function setCodeMode(on){ useCode = on; store.set("a30-usar-codigo", on); applyCodeMode(); toast(on ? "Ahora se copia el código único" : "El código único ya no se copia: pega en la columna del nombre"); }   // lo que ya escribiste en cada producto (si vuelves a él, no se pierde)
+function current(){ return state.results[state.sel]; }
+function rowValues(){ return FIELDS.map(id => { const el = document.getElementById(id); return el ? el.value.trim() : ""; }); }
+function saveKept(){ const d = current(); if(d) kept[d.id] = rowValues(); }
+function renderDetail(){
+  const D = $("#detail"), d = current();
+  if(!d){
+    D.innerHTML = `<div class="placeholder"><span class="eyebrow">Cómo se usa</span><ol>
+      <li>Busca el producto que tienes en la mano.</li><li>Escribe la cantidad (UND) y, si los tienes, los precios.</li>
+      <li>Pulsa <b>Copiar fila</b> (o <kbd>Enter</kbd>) y en tu Excel haz clic en la columna ${pasteCol()} y pega con <kbd>Ctrl</kbd>+<kbd>V</kbd>.</li></ol></div>`;
+    return;
+  }
+  const dups = (dupIndex.get(d.bc.v) || []).filter(x => x !== d);
+  const notes = [];
+  if(d.bc.note) notes.push(`<div class="warnbox${d.bc.kind === "bad" ? " bad" : ""}">${esc(d.bc.note)}</div>`);
+  if(dups.length) notes.push(`<div class="warnbox bad">Este código de barras también está en: ${dups.map(x => `<b>${esc(x.code)}</b> ${esc(x.name)} (${esc(x.cat)})`).join("; ")}. Verifica cuál es el correcto.</div>`);
+  if(done.has(d.id)) notes.push(`<div class="warnbox">Este producto ya lo pasaste a la hoja nueva. Revisa que no quede repetido.</div>`);
+  const v = kept[d.id] || [d.code, d.name, "", d.bc.v, "", ""];
+  const inp = (i, cls, extra = "") => `<div class="field ${cls}"><label for="${FIELDS[i]}">${HEAD[i]}</label><input id="${FIELDS[i]}" autocomplete="off" value="${esc(v[i])}" ${extra}></div>`;
+  D.innerHTML = `
+    <div class="dhead"><span class="cat big" style="${catStyle(d.cat)}">Categoría: ${esc(d.cat)}</span><h2>${esc(d.name)}</h2></div>
+    ${notes.join("")}
+    <div class="rowform">
+      ${inp(0, "f-sm codecol", 'inputmode="numeric"')}
+      ${inp(2, "f-sm", 'inputmode="decimal" placeholder="cantidad"')}
+      ${inp(4, "f-sm", 'inputmode="decimal" placeholder="S/"')}
+      ${inp(5, "f-sm", 'inputmode="decimal" placeholder="S/"')}
+      ${inp(1, "f-full")}
+      ${inp(3, "f-full", 'inputmode="numeric" class="mono"')}
+    </div>
+    <div class="field"><span class="eyebrow">Así se pegará en tu hoja</span><div class="preview" id="preview"></div></div>
+    <div class="actions"><button class="primary" id="copyrow" type="button">Copiar fila</button><button type="button" id="addone">${picked.has(d.id) ? "✓ En la lista · quitar" : "+ Agregar a la lista"}</button></div>
+    <div class="mini"><span class="eyebrow" style="align-self:center">Copiar solo:</span>
+      <button type="button" data-one="1">Nombre</button><button type="button" data-one="3">Cód. barras</button><button type="button" data-one="0">Código</button></div>`;
+  renderPreview();
+  FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener("input", () => { saveKept(); renderPreview(); if(picked.has(d.id)){ picked.set(d.id, rowValues()); savePicked(); renderTray(); } });
+    el.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); if(e.shiftKey){ togglePick(d, rowValues()); $("#q").focus(); $("#q").select(); } else copyRow(); }});
+  });
+  $("#copyrow").addEventListener("click", copyRow);
+  $("#addone").addEventListener("click", () => togglePick(d, rowValues()));
+  D.querySelectorAll("[data-one]").forEach(b => b.addEventListener("click", () => copyText(rowValues()[+b.dataset.one], `${b.textContent} copiado`)));
+}
+function renderPreview(){
+  if(!current() || !$("#preview")) return;
+  const v = outVals(rowValues());
+  $("#preview").innerHTML = `<table><tr>${outHead().map(h => `<th>${esc(h)}</th>`).join("")}</tr><tr>${v.map(x => `<td>${esc(x || " ")}</td>`).join("")}</tr></table>`;
+}
+function copyText(text, msg){
+  const ok = () => toast(msg);
+  const fallback = () => {
+    let ta = $("#copyfallback");
+    if(!ta){ ta = document.createElement("textarea"); ta.id = "copyfallback"; ta.rows = 2; $("#detail").appendChild(ta); }
+    ta.value = text; ta.focus(); ta.select();
+    let worked = false; try{ worked = document.execCommand("copy"); }catch(e){}
+    toast(worked ? msg : "Tu navegador no dejó copiar solo: el texto quedó seleccionado abajo, cópialo con Ctrl+C");
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, fallback); else fallback();
+}
+function copyRow(){
+  const d = current(); if(!d) return;
+  const v = rowValues();
+  copyText(outVals(v).map(x => String(x).replace(/\t|\n/g, " ")).join("\t"), `Fila copiada: pégala en la columna ${pasteCol()} con Ctrl+V`);
+  done.add(d.id); store.set("a30-copiados", [...done]);
+  const it = document.querySelector(".item.sel");
+  if(it){ it.classList.add("done"); it.lastElementChild.innerHTML = '<span class="pill done">ya pasado</span>'; }
+  updateProgress();
+  setTimeout(() => { const q = $("#q"); q.focus(); q.select(); }, 50);
+}
+function updateProgress(){
+  const pool = state.cat === "TODAS" ? DB : DB.filter(d => d.cat === state.cat);
+  const n = pool.filter(d => done.has(d.id)).length;
+  $("#progress").textContent = `Pasados: ${n} de ${pool.length}`;
+  $("#foot").textContent = `Las marcas de «ya pasado» se guardan solo en este navegador. Total pasados: ${DB.filter(d => done.has(d.id)).length} de ${DB.length}.`;
+}
+
+/* ---------- lista para copiar varios de golpe ---------- */
+let picked = new Map(), byId = new Map();
+const HUES = [28, 212, 150, 268, 190, 340, 48, 110, 0, 232, 170, 300];
+function catStyle(c){ const i = Math.max(0, CATS.indexOf(c)); return `--h:${HUES[i % HUES.length]}`; }
+function savePicked(){ store.set("a30-lista", [...picked]); }
+function defaultVals(d){ return (kept[d.id] || [d.code, d.name, "", d.bc.v, "", ""]).slice(); }
+function togglePick(d, vals){
+  if(picked.has(d.id)){ picked.delete(d.id); toast("Quitado de la lista"); }
+  else { picked.set(d.id, vals || defaultVals(d)); toast(`Agregado a la lista (${picked.size}) · ${d.cat}`); }
+  savePicked(); refreshPicks(); renderTray();
+}
+function refreshPicks(){
+  document.querySelectorAll(".item").forEach(el => {
+    const d = state.results[+el.dataset.k], b = el.querySelector(".pick"); if(!d || !b) return;
+    const on = picked.has(d.id); b.setAttribute("aria-checked", on); b.textContent = on ? "✓" : "+";
+  });
+  const a = $("#addone"), d = current(); if(a && d) a.textContent = picked.has(d.id) ? "✓ En la lista · quitar" : "+ Agregar a la lista";
+  $("#golist").textContent = `Lista (${picked.size}) ↓`;
+}
+function updateAddAll(){
+  const b = $("#addall"), n = state.results.filter(d => !picked.has(d.id)).length;
+  const filtered = $("#q").value.trim() || state.cat !== "TODAS";
+  b.hidden = !(filtered && n > 0); b.textContent = `+ Agregar los ${n} resultados`;
+}
+$("#addall").addEventListener("click", () => {
+  let n = 0; state.results.forEach(d => { if(!picked.has(d.id)){ picked.set(d.id, defaultVals(d)); n++; }});
+  savePicked(); refreshPicks(); renderTray(); updateAddAll(); toast(`${n} productos agregados a la lista`);
+});
+$("#golist").addEventListener("click", () => $("#tray").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"}));
+const TH = ["Codigo unico en la tienda", "nombre de los productos", "UND", "Codigo de barras", "precio por unidad", "precio por mayor"];
+function groups(){
+  const g = new Map();
+  for(const [id, v] of picked){ const d = byId.get(id); if(!d) continue; if(!g.has(d.cat)) g.set(d.cat, []); g.get(d.cat).push({d, v}); }
+  return [...g].sort((a, b) => CATS.indexOf(a[0]) - CATS.indexOf(b[0]));
+}
+function renderTray(){
+  const T = $("#tray"), G = groups();
+  $("#golist").textContent = `Lista (${picked.size}) ↓`;
+  if(!G.length){
+    T.innerHTML = `<div class="trayhead"><h3>Lista para copiar</h3></div>
+      <p class="hint" style="margin:0">Pulsa <b>+</b> en los productos (o <kbd>Shift</kbd>+<kbd>Enter</kbd>) para juntarlos aquí. Luego llenas UND y precios en la tabla y copias todas las filas de una vez.</p>`;
+    return;
+  }
+  const cell = (id, i, val, cls = "") => `<input class="${cls}" data-id="${esc(id)}" data-i="${i}" value="${esc(val)}" aria-label="${TH[i]}" autocomplete="off">`;
+  T.innerHTML = `
+    <div class="trayhead"><h3>Lista para copiar · ${picked.size} producto${picked.size === 1 ? "" : "s"}</h3>
+      <div class="tools">${G.length === 1 ? "" : `<button type="button" id="copyall">Copiar todo junto (${picked.size})</button>`}
+        <button type="button" id="dropdone">Quitar los ya pasados</button><span id="clearzone"><button type="button" id="clearlist">Vaciar lista</button></span></div></div>
+    ${G.length > 1 ? `<div class="warnbox">Tienes productos de <b>${G.length} categorías</b>. Cada categoría va en su propia hoja de Excel: copia cada grupo y pégalo en su hoja.</div>` : ""}
+    ${G.map(([cat, rows]) => `
+      <div class="group" style="${catStyle(cat)}">
+        <div class="ghead"><span class="cat" style="${catStyle(cat)}">${esc(cat)} <small>· ${rows.length} producto${rows.length === 1 ? "" : "s"} → hoja ${esc(cat)}</small></span>
+          <button type="button" class="primary" data-copycat="${esc(cat)}">Copiar ${rows.length} fila${rows.length === 1 ? "" : "s"}</button></div>
+        <div class="tblwrap"><table class="tbl"><tr><th></th>${TH.map((h, i) => `<th class="${i === 0 ? "codecol" : ""}">${h}</th>`).join("")}</tr>
+          ${rows.map(({d, v}) => `<tr class="${done.has(d.id) ? "copied" : ""}"><td><button type="button" class="x" data-del="${esc(d.id)}" aria-label="Quitar ${esc(d.name)}">✕</button></td>
+            <td class="codecol">${cell(d.id, 0, v[0])}</td><td class="nm">${esc(v[1])}</td><td>${cell(d.id, 2, v[2])}</td>
+            <td>${cell(d.id, 3, v[3], "wide")}</td><td>${cell(d.id, 4, v[4])}</td><td>${cell(d.id, 5, v[5])}</td></tr>`).join("")}
+        </table></div>
+      </div>`).join("")}`;
+}
+const tsv = rows => rows.map(({v}) => outVals(v).map(x => String(x ?? "").replace(/\t|\n/g, " ").trim()).join("\t")).join("\n");
+function markCopied(rows){ rows.forEach(({d}) => done.add(d.id)); store.set("a30-copiados", [...done]); renderList($("#q").value.trim()); renderTray(); }
+$("#tray").addEventListener("input", e => {
+  const t = e.target; if(!t.dataset.id) return;
+  const v = picked.get(t.dataset.id); if(!v) return;
+  v[+t.dataset.i] = t.value; kept[t.dataset.id] = v.slice(); savePicked();
+});
+$("#tray").addEventListener("keydown", e => {   // Enter baja a la misma columna de la fila siguiente, como en Excel
+  const t = e.target; if(e.key !== "Enter" || !t.dataset.id) return; e.preventDefault();
+  const all = [...$("#tray").querySelectorAll(`input[data-i="${t.dataset.i}"]`)], k = all.indexOf(t);
+  if(all[k + 1]){ all[k + 1].focus(); all[k + 1].select(); }
+});
+$("#tray").addEventListener("click", e => {
+  const del = e.target.closest("[data-del]");
+  if(del){ picked.delete(del.dataset.del); savePicked(); refreshPicks(); renderTray(); updateAddAll(); return; }
+  const cc = e.target.closest("[data-copycat]");
+  if(cc){ const rows = groups().find(([c]) => c === cc.dataset.copycat)[1];
+    copyText(tsv(rows), `${rows.length} filas copiadas. Pégalas en la hoja ${cc.dataset.copycat}, en la columna ${pasteCol()}`); markCopied(rows); return; }
+  if(e.target.id === "copyall"){ const rows = groups().flatMap(([, r]) => r);
+    copyText(tsv(rows), `${rows.length} filas copiadas (varias categorías). Pega en la columna ${pasteCol()}`); markCopied(rows); return; }
+  if(e.target.id === "dropdone"){ let n = 0; for(const id of [...picked.keys()]) if(done.has(id)){ picked.delete(id); n++; }
+    savePicked(); refreshPicks(); renderTray(); updateAddAll(); toast(n ? `${n} quitados de la lista` : "No hay productos ya pasados en la lista"); return; }
+  if(e.target.id === "clearlist"){
+    $("#clearzone").innerHTML = `<span>¿Vaciar la lista?</span> <button type="button" id="clearyes" class="primary">Sí, vaciar</button> <button type="button" id="clearno">Cancelar</button>`; return; }
+  if(e.target.id === "clearyes"){ picked.clear(); savePicked(); refreshPicks(); renderTray(); updateAddAll(); toast("Lista vaciada"); return; }
+  if(e.target.id === "clearno"){ renderTray(); }
+});
+
+/* ---------- categorías, teclado, utilidades ---------- */
+function renderCats(){
+  $("#cats").innerHTML = ["TODAS", ...CATS].map(c => `<button type="button" class="chip${c === "TODAS" ? "" : " c"}" style="${c === "TODAS" ? "" : catStyle(c)}" aria-pressed="${c === state.cat}" data-cat="${esc(c)}">${c === "TODAS" ? "Todas" : esc(c.charAt(0) + c.slice(1).toLowerCase())}</button>`).join("");
+}
+$("#cats").addEventListener("click", e => {
+  const b = e.target.closest("[data-cat]"); if(!b) return;
+  state.cat = b.dataset.cat; renderCats(); search(); $("#q").focus();
+});
+let tmr; $("#q").addEventListener("input", () => { clearTimeout(tmr); tmr = setTimeout(search, 80); });
+$("#q").addEventListener("keydown", e => {
+  if(e.key === "ArrowDown"){ e.preventDefault(); state.sel = Math.min(state.sel + 1, state.results.length - 1); markSel(); renderDetail(); }
+  else if(e.key === "ArrowUp"){ e.preventDefault(); state.sel = Math.max(state.sel - 1, 0); markSel(); renderDetail(); }
+  else if(e.key === "Enter" && e.shiftKey){ e.preventDefault(); const d = current(); if(d) togglePick(d); }
+  else if(e.key === "Enter"){ e.preventDefault(); clearTimeout(tmr); search();
+    const d = current(); if(d){ const s = $("#f-und"); s.focus(); s.select(); } }   // Enter en la búsqueda lleva a UND; Enter en cualquier casilla copia
+  else if(e.key === "Escape"){ $("#q").value = ""; search(); }
+});
+let tt; function toast(m){ const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 2600); }
+function wireReset(){
+  $("#reset").addEventListener("click", () => {
+    const z = $("#resetzone");
+    z.innerHTML = `<span>¿Borrar las ${done.size} marcas de «ya pasado»?</span><button type="button" id="yes" class="primary">Sí, borrar</button><button type="button" id="no">Cancelar</button>`;
+    const restore = () => { z.innerHTML = `<button id="reset" type="button">Borrar marcas de «ya pasado»</button>`; wireReset(); };
+    $("#yes").addEventListener("click", () => { done = new Set(); store.set("a30-copiados", []); restore(); search(); toast("Marcas borradas"); });
+    $("#no").addEventListener("click", restore);
+  });
+}
+wireReset();
+$("#code-on").addEventListener("click", () => setCodeMode(true));
+$("#code-off").addEventListener("click", () => setCodeMode(false));
+
+load(OLD, "inventario antiguo (INVENTARIADO_POR_CODIGO_FERRETERIA)");
+applyCodeMode();
+$("#q").focus();
+</script>
+
+</body></html>

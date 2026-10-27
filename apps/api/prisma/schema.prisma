@@ -1,0 +1,217 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+enum ChannelType {
+  APP
+  INTERNET_BANKING
+  MULTIRED_VIRTUAL
+}
+
+enum ChannelStatus {
+  UNKNOWN
+  AVAILABLE
+  DEGRADED
+  UNAVAILABLE
+  MAINTENANCE
+}
+
+enum CheckResult {
+  SUCCESS
+  DEGRADED
+  FAILURE
+  TIMEOUT
+}
+
+enum CheckSource {
+  SIMULATED
+  HTTP
+}
+
+enum IncidentStatus {
+  OPEN
+  ACKNOWLEDGED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentEventKind {
+  OPENED
+  STATUS_CHANGED
+  CHANNEL_RECOVERED
+}
+
+enum IncidentActorType {
+  USER
+  SYSTEM
+}
+
+enum ChannelStatusChangeSource {
+  USER
+  CHECK
+  SYSTEM
+}
+
+model User {
+  id                   String                 @id @default(uuid()) @db.Uuid
+  email                String                 @unique @db.VarChar(254)
+  passwordHash         String                 @db.VarChar(255)
+  role                 UserRole               @default(VIEWER)
+  sessions             Session[]
+  incidentEvents       IncidentEvent[]
+  channelStatusChanges ChannelStatusHistory[]
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique @db.Char(64)
+  userId    String   @db.Uuid
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Channel {
+  id                String                 @id @default(uuid()) @db.Uuid
+  code              String                 @unique @db.VarChar(40)
+  name              String                 @db.VarChar(120)
+  description       String?                @db.VarChar(500)
+  type              ChannelType
+  simulatedTarget   String                 @db.VarChar(200)
+  currentStatus     ChannelStatus          @default(UNKNOWN)
+  monitoringEnabled Boolean                @default(false)
+  monitoringConfig  MonitoringConfig?
+  checks            ChannelCheck[]
+  incidents         Incident[]
+  statusHistory     ChannelStatusHistory[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([monitoringEnabled, currentStatus])
+  @@map("channels")
+}
+
+model MonitoringConfig {
+  id                   String   @id @default(uuid()) @db.Uuid
+  channelId            String   @unique @db.Uuid
+  checkIntervalSeconds Int      @default(60)
+  timeoutMillis        Int      @default(5000)
+  latencyWarningMillis Int      @default(1500)
+  failureThreshold     Int      @default(3)
+  recoveryThreshold    Int      @default(2)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  channel              Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@map("monitoring_configs")
+}
+
+model ChannelCheck {
+  id                String          @id @default(uuid()) @db.Uuid
+  channelId         String          @db.Uuid
+  source            CheckSource     @default(SIMULATED)
+  result            CheckResult
+  observedStatus    ChannelStatus
+  responseTimeMs    Int?
+  httpStatusCode    Int?
+  detail            String?         @db.VarChar(500)
+  checkedAt         DateTime        @default(now())
+  channel           Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  detectedIncidents Incident[]      @relation("IncidentDetection")
+  incidentEvents    IncidentEvent[]
+
+  @@index([channelId, checkedAt])
+  @@index([checkedAt])
+  @@map("channel_checks")
+}
+
+model Incident {
+  id               String           @id @default(uuid()) @db.Uuid
+  channelId        String           @db.Uuid
+  detectionCheckId String?          @db.Uuid
+  status           IncidentStatus   @default(OPEN)
+  severity         IncidentSeverity @default(MEDIUM)
+  summary          String           @db.VarChar(240)
+  reason           String           @db.VarChar(500)
+  evidence         String           @db.VarChar(2000)
+  detectedAt       DateTime         @default(now())
+  openedAt         DateTime         @default(now())
+  recoveredAt      DateTime?
+  resolvedAt       DateTime?
+  closedAt         DateTime?
+  channel          Channel          @relation(fields: [channelId], references: [id], onDelete: Restrict)
+  detectionCheck   ChannelCheck?    @relation("IncidentDetection", fields: [detectionCheckId], references: [id], onDelete: SetNull)
+  events           IncidentEvent[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([channelId, status])
+  @@index([status, openedAt])
+  @@index([channelId, detectedAt])
+  @@index([detectionCheckId])
+  @@map("incidents")
+}
+
+model IncidentEvent {
+  id             String            @id @default(uuid()) @db.Uuid
+  incidentId     String            @db.Uuid
+  checkId        String?           @db.Uuid
+  actorId        String?           @db.Uuid
+  actorType      IncidentActorType
+  kind           IncidentEventKind @default(STATUS_CHANGED)
+  previousStatus IncidentStatus?
+  newStatus      IncidentStatus
+  note           String?           @db.VarChar(500)
+  createdAt      DateTime          @default(now())
+  incident       Incident          @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  check          ChannelCheck?     @relation(fields: [checkId], references: [id], onDelete: SetNull)
+  actor          User?             @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([incidentId, createdAt])
+  @@index([checkId])
+  @@index([actorId])
+  @@map("incident_events")
+}
+
+model ChannelStatusHistory {
+  id             String                    @id @default(uuid()) @db.Uuid
+  channelId      String                    @db.Uuid
+  actorId        String?                   @db.Uuid
+  previousStatus ChannelStatus?
+  newStatus      ChannelStatus
+  source         ChannelStatusChangeSource
+  changedAt      DateTime                  @default(now())
+  channel        Channel                   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  actor          User?                     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([channelId, changedAt])
+  @@index([actorId])
+  @@map("channel_status_history")
+}
