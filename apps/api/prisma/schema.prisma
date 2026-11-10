@@ -71,6 +71,17 @@ enum ChannelStatusChangeSource {
   SYSTEM
 }
 
+enum NotificationKind {
+  CHANNEL_DOWN
+  CHANNEL_RECOVERED
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 model User {
   id                   String                 @id @default(uuid()) @db.Uuid
   email                String                 @unique @db.VarChar(254)
@@ -111,6 +122,7 @@ model Channel {
   checks            ChannelCheck[]
   incidents         Incident[]
   statusHistory     ChannelStatusHistory[]
+  notifications     Notification[]
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
@@ -169,6 +181,7 @@ model Incident {
   channel          Channel          @relation(fields: [channelId], references: [id], onDelete: Restrict)
   detectionCheck   ChannelCheck?    @relation("IncidentDetection", fields: [detectionCheckId], references: [id], onDelete: SetNull)
   events           IncidentEvent[]
+  notifications    Notification[]
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -214,4 +227,49 @@ model ChannelStatusHistory {
   @@index([channelId, changedAt])
   @@index([actorId])
   @@map("channel_status_history")
+}
+
+model NotificationRecipient {
+  id             String         @id @default(uuid()) @db.Uuid
+  email          String         @unique @db.VarChar(254)
+  name           String?        @db.VarChar(120)
+  active         Boolean        @default(true)
+  notifyDown     Boolean        @default(true)
+  notifyRecovery Boolean        @default(true)
+  notifications  Notification[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@map("notification_recipients")
+}
+
+model Notification {
+  id                String                 @id @default(uuid()) @db.Uuid
+  kind              NotificationKind
+  status            NotificationStatus     @default(PENDING)
+  channelId         String                 @db.Uuid
+  incidentId        String?                @db.Uuid
+  recipientId       String?                @db.Uuid
+  recipientEmail    String                 @db.VarChar(254)
+  subject           String                 @db.VarChar(200)
+  body              String                 @db.VarChar(4000)
+  eventAt           DateTime
+  attempts          Int                    @default(0)
+  maxAttempts       Int                    @default(3)
+  nextAttemptAt     DateTime               @default(now())
+  lastError         String?                @db.VarChar(500)
+  providerMessageId String?                @db.VarChar(255)
+  previewUrl        String?                @db.VarChar(500)
+  sentAt            DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  channel           Channel                @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  incident          Incident?              @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  recipient         NotificationRecipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+
+  @@index([status, nextAttemptAt])
+  @@index([incidentId])
+  @@index([channelId, createdAt])
+  @@index([recipientId])
+  @@map("notifications")
 }

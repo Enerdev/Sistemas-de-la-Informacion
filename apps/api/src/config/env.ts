@@ -15,6 +15,13 @@ const environmentSchema = z.object({
   SEED_ADMIN_PASSWORD: z.string().min(12).max(128).optional(),
   MONITORING_DRIVER: z.enum(["simulated", "http"]).default("simulated"),
   MONITORING_HTTP_ALLOWED_HOSTS: z.string().default(""),
+  NOTIFICATIONS_DRIVER: z.enum(["json", "ethereal", "smtp"]).default("json"),
+  NOTIFICATIONS_FROM: z.string().trim().min(3).max(200).default("SIMONA-BN <alertas@simona.test>"),
+  SMTP_HOST: z.string().trim().optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SECURE: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
 });
 
 export type AppConfig = Omit<z.infer<typeof environmentSchema>, "MONITORING_HTTP_ALLOWED_HOSTS"> & {
@@ -42,6 +49,12 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
 
   if (result.data.MONITORING_DRIVER === "http" && allowedHosts.length === 0) {
     throw new Error("MONITORING_HTTP_ALLOWED_HOSTS es obligatorio cuando MONITORING_DRIVER=http");
+  }
+  if (result.data.NOTIFICATIONS_DRIVER === "smtp" && !result.data.SMTP_HOST) {
+    throw new Error("SMTP_HOST es obligatorio cuando NOTIFICATIONS_DRIVER=smtp");
+  }
+  if (Boolean(result.data.SMTP_USER) !== Boolean(result.data.SMTP_PASS)) {
+    throw new Error("SMTP_USER y SMTP_PASS deben configurarse juntos");
   }
   if (allowedHosts.some((host) => !isValidHttpAuthority(host))) {
     throw new Error("MONITORING_HTTP_ALLOWED_HOSTS solo acepta host o autoridad host:puerto, sin esquema ni ruta");

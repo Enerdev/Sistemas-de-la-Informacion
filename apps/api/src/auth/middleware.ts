@@ -48,6 +48,16 @@ export function requireChannelWritePermission(): RequestHandler {
   };
 }
 
+export function requireRole(roles: UserRole[], message: string): RequestHandler {
+  return (request, _response, next) => {
+    if (!request.auth || !roles.includes(request.auth.role)) {
+      next(new AppError(message, 403));
+      return;
+    }
+    next();
+  };
+}
+
 export function getAuthenticatedUser(request: Request) {
   if (!request.auth) {
     throw new AppError("Autenticación requerida", 401);

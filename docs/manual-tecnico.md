@@ -15,17 +15,20 @@ flowchart LR
     Monitor --> Verifier[Verificador simulated por defecto]
     Verifier -. Alternativa restringida .-> HTTP[Verificador HTTPS allowlist]
     Monitor --> Incident[M2 ciclo de incidencias]
+    Incident --> Outbox[M3 cola de notificaciones]
+    Outbox --> Mailer[Nodemailer: json, Ethereal o SMTP]
     Auth --> Prisma[Prisma Client]
     Channel --> Prisma
     Monitor --> Prisma
     Incident --> Prisma
+    Outbox --> Prisma
     Prisma --> PG[(PostgreSQL)]
 ```
 
 ### Tecnologías
 
 - Monorepo npm workspaces; Node.js 20.19+ recomendado (README: 22 LTS).
-- API: Node.js, Express 4, TypeScript, Prisma 6, Zod, `node-cron`.
+- API: Node.js, Express 4, TypeScript, Prisma 6, Zod, `node-cron`, Nodemailer 10.
 - UI: React 19, TypeScript y Vite 6.
 - Persistencia: PostgreSQL (README recomienda versión 16 o superior).
 - Pruebas: Vitest, Supertest y pruebas de integración PostgreSQL opcionales.
@@ -71,6 +74,8 @@ El esquema completo y sus enums están en [`apps/api/prisma/schema.prisma`](../a
 | `Incident` (`incidents`) | Canal, verificación detectada, estado/severidad, motivo/evidencia y marcas de tiempo |
 | `IncidentEvent` (`incident_events`) | Apertura, cambios administrativos y recuperación técnica; actor y verificación opcionales |
 | `ChannelStatusHistory` (`channel_status_history`) | Historial de cambios de estado del canal y su origen |
+| `NotificationRecipient` (`notification_recipients`) | Correo único, nombre, activo y suscripción a caídas/restablecimientos |
+| `Notification` (`notifications`) | Evento (`CHANNEL_DOWN`/`CHANNEL_RECOVERED`), canal, incidencia, destinatario, mensaje, estado de envío, intentos, error, id del proveedor, vista previa y fechas |
 
 Enums relevantes:
 
@@ -80,7 +85,7 @@ Enums relevantes:
 - Estado de incidencia: `OPEN`, `ACKNOWLEDGED`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`.
 - Severidad: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
 
-La migración inicial crea un índice único parcial que impide más de una incidencia activa (`OPEN`, `ACKNOWLEDGED`, `IN_PROGRESS`) por canal. Las migraciones M1 y M2 añaden metadatos de verificación y evidencia/recuperación de incidencias.
+La migración inicial crea un índice único parcial que impide más de una incidencia activa (`OPEN`, `ACKNOWLEDGED`, `IN_PROGRESS`) por canal. Las migraciones M1 y M2 añaden metadatos de verificación y evidencia/recuperación de incidencias. La migración M3 crea destinatarios y notificaciones, con restricciones `CHECK` que impiden intentos negativos y un estado `SENT` sin fecha de envío.
 
 ## 4. Instalación y configuración local
 
@@ -146,6 +151,10 @@ La referencia está en [`.env.example`](../.env.example); `apps/api/.env` es loc
 | `SEED_ADMIN_PASSWORD` | Opcional | Entre 12 y 128 caracteres |
 | `MONITORING_DRIVER` | Opcional; `simulated` | `simulated` o `http` |
 | `MONITORING_HTTP_ALLOWED_HOSTS` | Opcional; vacío | Lista separada por comas de autoridades exactas `host[:puerto]`; obligatoria para `http` |
+| `NOTIFICATIONS_DRIVER` | Opcional; `json` | `json` (sin red), `ethereal` (buzón de prueba) o `smtp` |
+| `NOTIFICATIONS_FROM` | Opcional; `SIMONA-BN <alertas@simona.test>` | Remitente de las alertas |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` | Requerido `SMTP_HOST` solo para `smtp`; puerto `587`, `false` | Servidor SMTP |
+| `SMTP_USER`, `SMTP_PASS` | Opcionales, siempre juntos | Credenciales SMTP; con `ethereal` fijan una cuenta de prueba existente |
 | `TEST_DATABASE_URL` | Solo pruebas PostgreSQL | Base local de pruebas cuyo nombre termina en `_test`; no es `DATABASE_URL` productiva |
 
 El modo HTTP solo realiza GET HTTPS, rechaza credenciales en URL, no sigue redirecciones y exige coincidencia exacta con la allowlist. Cambiar `MONITORING_DRIVER` requiere reiniciar la API. Para la demostración, mantener `MONITORING_DRIVER=simulated`.
@@ -209,6 +218,18 @@ Configuración admitida: intervalo 15–86.400 s; timeout 100–60.000 ms; umbra
 
 Transiciones aceptadas: `OPEN → IN_PROGRESS`; `ACKNOWLEDGED → IN_PROGRESS`; `IN_PROGRESS → RESOLVED`; `RESOLVED → CLOSED`. Los cambios fuera de transición responden conflicto; `VIEWER` recibe denegación de permisos.
 
+### Notificaciones (M3)
+
+| Método | Ruta | Acceso | Función |
+|---|---|---|---|
+| `GET` | `/api/notifications?status=&kind=&channelId=&incidentId=&limit=&cursor=` | ADMIN/OPERATOR | Registro de envíos y transporte activo |
+| `POST` | `/api/notifications/:id/retry` | ADMIN/OPERATOR | Reprograma una notificación `FAILED` (un intento adicional) |
+| `GET` | `/api/notifications/recipients` | ADMIN/OPERATOR | Lista de destinatarios |
+| `POST` | `/api/notifications/recipients` | ADMIN | Alta con `{ "email", "name"?, "notifyDown"?, "notifyRecovery"? }` |
+| `PATCH` | `/api/notifications/recipients/:id` | ADMIN | Cambiar nombre, suscripciones o activar/desactivar |
+
+Las notificaciones se insertan en la transacción de la verificación (outbox). El despachador las envía tras cada verificación manual y en cada barrido del scheduler (15 s); reserva cada fila antes de enviarla para evitar duplicados y reintenta a los 30 s y 60 s antes de marcarla `FAILED`.
+
 ## 8. Ejecución de la aplicación
 
 Después de configurar PostgreSQL, migrar y ejecutar seed, abra dos terminales en la raíz:
@@ -240,7 +261,11 @@ npm run build
 
 Los archivos de test cubren validación, autenticación, clasificación, verificador, scheduler, transiciones y flujo de incidencias. La suite PostgreSQL de `apps/api/src/integration/database.integration.test.ts` se habilita solo con `TEST_DATABASE_URL` local y una base terminada en `_test` con migraciones aplicadas. Sin ella, las pruebas de persistencia se omiten; no se debe usar una base productiva.
 
-### Resultado de QA existente
+### Resultado actualizado (10 de noviembre de 2026)
+
+Con PostgreSQL local y `TEST_DATABASE_URL` configurada se ejecutan **61 pruebas sin omisiones**, incluido el recorrido M1→M2→M3: caída simulada, apertura de incidencia, notificación enviada, rechazo simulado con reintentos hasta `FAILED`, reintento manual, recuperación y notificación de restablecimiento.
+
+### Resultado de QA anterior
 
 [`QA-REPORT.md`](../QA-REPORT.md), fechado 14 de octubre de 2026, reporta **38 pruebas aprobadas y 8 omitidas**, sin fallos en su ejecución final. También informa lint, `typecheck`, build, validación del esquema Prisma y auditoría de dependencias aprobados. Estos son resultados **reportados por ese documento**, no una repetición realizada durante la elaboración de este manual.
 
@@ -276,4 +301,5 @@ Para una nueva entrega, repita los comandos en el entorno destino y adjunte sali
 - [`apps/api/src/app.ts`](../apps/api/src/app.ts), montaje de rutas y manejo HTTP.
 - [`apps/api/src/monitoring/service.ts`](../apps/api/src/monitoring/service.ts), persistencia y evaluación M1.
 - [`apps/api/src/incidents/lifecycle.ts`](../apps/api/src/incidents/lifecycle.ts), ciclo M2.
+- [`apps/api/src/notifications/`](../apps/api/src/notifications/), cola, despachador y transportes M3.
 - [`QA-REPORT.md`](../QA-REPORT.md), resultados reportados y límites de la ejecución QA del 14/10/2026.

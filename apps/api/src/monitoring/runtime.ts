@@ -1,4 +1,5 @@
 import { loadConfig } from "../config/env.js";
+import { dispatchDueNotifications, triggerNotificationDispatch } from "../notifications/runtime.js";
 import { createServiceVerifier } from "./verifiers.js";
 import { MonitoringService } from "./service.js";
 import { createDefaultMonitoringScheduler } from "./scheduler.js";
@@ -11,13 +12,18 @@ function getMonitoringService(): MonitoringService {
     const config = loadConfig();
     const monitoringService = new MonitoringService(createServiceVerifier(config));
     service = monitoringService;
-    scheduler = createDefaultMonitoringScheduler(() => monitoringService.runDueChecks());
+    scheduler = createDefaultMonitoringScheduler(async () => {
+      await monitoringService.runDueChecks();
+      await dispatchDueNotifications();
+    });
   }
   return service;
 }
 
-export function runManualMonitoringCheck(channelId: string) {
-  return getMonitoringService().runManualCheck(channelId);
+export async function runManualMonitoringCheck(channelId: string) {
+  const check = await getMonitoringService().runManualCheck(channelId);
+  triggerNotificationDispatch();
+  return check;
 }
 
 export function startMonitoringScheduler(): boolean {

@@ -1,4 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { apiRequest } from "./api";
+import {
+  NotificationDelivery,
+  NotificationStatusTag,
+  NotificationsPanel,
+  notificationKindLabels,
+} from "./NotificationsPanel";
+import type { Notification } from "./NotificationsPanel";
 
 type User = {
   id: string;
@@ -61,6 +69,7 @@ type Incident = {
   };
   detectionCheck: Check | null;
   events?: IncidentEvent[];
+  notifications?: Notification[];
 };
 
 type Channel = {
@@ -83,29 +92,6 @@ type PageState =
 
 type FormMode = "login" | "register";
 type MonitoringConfigInput = MonitoringConfig;
-
-async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: {
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-  });
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  const body = (await response.json()) as { data?: T; error?: { message?: string } };
-  if (!response.ok) {
-    throw new Error(body.error?.message ?? `La solicitud falló (${response.status})`);
-  }
-  if (!body.data) {
-    throw new Error("La respuesta del servicio no tiene el formato esperado");
-  }
-  return body.data;
-}
 
 const statusLabels: Record<Channel["currentStatus"], string> = {
   UNKNOWN: "Sin verificar",
@@ -151,7 +137,7 @@ function App() {
   const [history, setHistory] = useState<Record<string, Check[]>>({});
   const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({});
   const [checkingChannel, setCheckingChannel] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"channels" | "incidents">("channels");
+  const [activeTab, setActiveTab] = useState<"channels" | "incidents" | "notifications">("channels");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -406,6 +392,14 @@ function App() {
           >
             Incidencias
           </button>
+          {canManage && (
+            <button
+              className={`nav-link nav-button ${activeTab === "notifications" ? "active" : ""}`}
+              onClick={() => setActiveTab("notifications")}
+            >
+              Notificaciones
+            </button>
+          )}
           <a className="nav-link" href="#acerca">Acerca del proyecto</a>
         </nav>
         <div className="account-menu">
@@ -564,8 +558,10 @@ function App() {
           <p className="scope-note">Las verificaciones manuales y el scheduler registran el resultado en PostgreSQL. Las tareas usan un intervalo mínimo de 15 segundos.</p>
             </section>
           </>
-        ) : (
+        ) : activeTab === "incidents" ? (
           <IncidentsPanel channels={channels} user={page.user} setNotice={setNotice} />
+        ) : (
+          <NotificationsPanel isAdmin={page.user.role === "ADMIN"} setNotice={setNotice} />
         )}
 
         <section className="about-section" id="acerca">
@@ -575,7 +571,7 @@ function App() {
             <h2>Una base para observar y aprender.</h2>
             <p>Proyecto universitario. No se conecta con sistemas internos del Banco de la Nación y no procesa transacciones reales.</p>
           </div>
-          <span className="version-label">MONITOREO M1 · 0.3.0</span>
+          <span className="version-label">ALERTAS M3 · 0.4.0</span>
         </section>
       </main>
 
@@ -1061,6 +1057,26 @@ function IncidentsPanel({
                 </div>
               ))}
             </div>
+            {selected.notifications && (
+              <div className="incident-timeline">
+                <h4>Notificaciones</h4>
+                {selected.notifications.length === 0 && (
+                  <p className="permission-note">No hay notificaciones: no había destinatarios activos para este evento.</p>
+                )}
+                {selected.notifications.map((notification) => (
+                  <div className="incident-event" key={notification.id}>
+                    <span className="event-dot" />
+                    <div>
+                      <strong>
+                        {notificationKindLabels[notification.kind]} → {notification.recipientEmail}{" "}
+                        <NotificationStatusTag notification={notification} />
+                      </strong>
+                      <NotificationDelivery notification={notification} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             {canManage && nextStatus && (
               <form
                 className="incident-action"

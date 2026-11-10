@@ -6,6 +6,10 @@ import { app } from "../app.js";
 import { hashPassword } from "../auth/password.js";
 import { prisma } from "../db/prisma.js";
 import { MonitoringService } from "../monitoring/service.js";
+import { SimulatedServiceVerifier } from "../monitoring/verifiers.js";
+import { loadConfig } from "../config/env.js";
+import { NotificationDispatcher } from "../notifications/dispatcher.js";
+import { createMailer } from "../notifications/mailer.js";
 
 const enabled = Boolean(process.env.TEST_DATABASE_URL);
 const suite = describe.skipIf(!enabled);
@@ -17,6 +21,9 @@ const channelCode = `TEST_${suffix}`;
 const historyChannelCode = `HIST_${suffix}`;
 const incidentChannelCode = `INC_${suffix}`;
 const concurrentChannelCode = `RACE_${suffix}`;
+const notificationChannelCode = `NOTIF_${suffix}`;
+const deliveredRecipientEmail = `m3-ok-${suffix.toLowerCase()}@simona.test`;
+const failingRecipientEmail = `m3-${suffix.toLowerCase()}@fallo.simona.test`;
 const testPassword = "Database-Test-Password-2026!";
 let adminCookie = "";
 let operatorCookie = "";
@@ -82,11 +89,18 @@ suite("persistencia e integración PostgreSQL", () => {
 
   afterAll(async () => {
     await prisma.incident.deleteMany({
-      where: { channel: { code: { in: [channelCode, historyChannelCode, incidentChannelCode, concurrentChannelCode] } } },
+      where: {
+        channel: {
+          code: { in: [channelCode, historyChannelCode, incidentChannelCode, concurrentChannelCode, notificationChannelCode] },
+        },
+      },
     });
     await prisma.channel.deleteMany({ where: { code: { in: [channelCode, historyChannelCode] } } });
     await prisma.channel.deleteMany({
-      where: { code: { in: [incidentChannelCode, concurrentChannelCode] } },
+      where: { code: { in: [incidentChannelCode, concurrentChannelCode, notificationChannelCode] } },
+    });
+    await prisma.notificationRecipient.deleteMany({
+      where: { email: { in: [deliveredRecipientEmail, failingRecipientEmail] } },
     });
     const userIds = [adminId, operatorId, viewerId].filter((id): id is string => Boolean(id));
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });
@@ -421,6 +435,107 @@ suite("persistencia e integración PostgreSQL", () => {
     expect(await prisma.channelCheck.count({ where: { channelId } })).toBe(2);
     expect(await prisma.incident.count({ where: { channelId, status: { in: ["OPEN", "IN_PROGRESS"] } } }))
       .toBe(1);
+  });
+
+  it("notifies outage and recovery, records delivery and retries failed sends (M1→M2→M3)", async () => {
+    const [delivered, failing] = await Promise.all([
+      prisma.notificationRecipient.create({ data: { email: deliveredRecipientEmail, name: "TI prueba" } }),
+      prisma.notificationRecipient.create({ data: { email: failingRecipientEmail, notifyRecovery: false } }),
+    ]);
+    try {
+      const channel = await prisma.channel.create({
+        data: {
+          code: notificationChannelCode,
+          name: "Canal de notificaciones",
+          type: "APP",
+          simulatedTarget: "sim://down",
+          currentStatus: ChannelStatus.AVAILABLE,
+          monitoringConfig: { create: {} },
+        },
+      });
+      const monitoring = new MonitoringService(new SimulatedServiceVerifier());
+      let clockOffsetMillis = 0;
+      const dispatcher = new NotificationDispatcher(
+        createMailer(loadConfig({ DATABASE_URL: process.env.DATABASE_URL })),
+        prisma,
+        () => new Date(Date.now() + clockOffsetMillis),
+      );
+
+      for (let index = 0; index < 3; index += 1) {
+        await monitoring.runManualCheck(channel.id);
+      }
+      const incident = await prisma.incident.findFirstOrThrow({ where: { channelId: channel.id } });
+      const queued = await prisma.notification.findMany({ where: { incidentId: incident.id } });
+      expect(queued).toHaveLength(2);
+      expect(queued.every((notification) => notification.kind === "CHANNEL_DOWN" && notification.status === "PENDING"))
+        .toBe(true);
+      expect(queued[0]?.subject).toBe("[SIMONA-BN] CAÍDO: Canal de notificaciones");
+
+      expect(await dispatcher.dispatchDue()).toBe(1);
+      const sent = await prisma.notification.findFirstOrThrow({ where: { incidentId: incident.id, recipientId: delivered.id } });
+      expect(sent).toMatchObject({ status: "SENT", attempts: 1, lastError: null });
+      expect(sent.sentAt!.getTime()).toBeGreaterThanOrEqual(sent.eventAt.getTime());
+
+      const retrying = await prisma.notification.findFirstOrThrow({ where: { incidentId: incident.id, recipientId: failing.id } });
+      expect(retrying).toMatchObject({ status: "PENDING", attempts: 1, lastError: expect.stringContaining("Rechazo SMTP simulado") });
+      clockOffsetMillis = 30_000;
+      await dispatcher.dispatchDue();
+      clockOffsetMillis = 90_000;
+      await dispatcher.dispatchDue();
+      const failed = await prisma.notification.findUniqueOrThrow({ where: { id: retrying.id } });
+      expect(failed).toMatchObject({ status: "FAILED", attempts: 3, sentAt: null });
+
+      const listed = await request(app)
+        .get(`/api/notifications?incidentId=${incident.id}&status=FAILED`)
+        .set("Cookie", operatorCookie);
+      expect(listed.status).toBe(200);
+      expect(listed.body.data.notifications).toHaveLength(1);
+      expect(listed.body.data.driver).toBe("json");
+      const viewerList = await request(app).get("/api/notifications").set("Cookie", viewerCookie);
+      expect(viewerList.status).toBe(403);
+      const operatorRecipientWrite = await request(app)
+        .post("/api/notifications/recipients")
+        .set("Cookie", operatorCookie)
+        .send({ email: `otro-${suffix.toLowerCase()}@simona.test` });
+      expect(operatorRecipientWrite.status).toBe(403);
+      const sentRetry = await request(app).post(`/api/notifications/${sent.id}/retry`).set("Cookie", operatorCookie);
+      expect(sentRetry.status).toBe(409);
+
+      const retried = await request(app).post(`/api/notifications/${failed.id}/retry`).set("Cookie", operatorCookie);
+      expect(retried.status).toBe(202);
+      expect(retried.body.data.notification.maxAttempts).toBe(4);
+      for (let wait = 0; wait < 40; wait += 1) {
+        const current = await prisma.notification.findUniqueOrThrow({ where: { id: failed.id } });
+        if (current.attempts === 4 && current.status !== "PENDING") break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(await prisma.notification.findUniqueOrThrow({ where: { id: failed.id } }))
+        .toMatchObject({ status: "FAILED", attempts: 4 });
+
+      await prisma.channel.update({ where: { id: channel.id }, data: { simulatedTarget: "sim://app-bn" } });
+      await monitoring.runManualCheck(channel.id);
+      await monitoring.runManualCheck(channel.id);
+      const recovery = await prisma.notification.findMany({
+        where: { incidentId: incident.id, kind: "CHANNEL_RECOVERED" },
+      });
+      expect(recovery).toHaveLength(1);
+      expect(recovery[0]).toMatchObject({ recipientId: delivered.id, status: "PENDING" });
+      expect(recovery[0]?.body).toContain("no cierra la incidencia");
+      clockOffsetMillis = 0;
+      expect(await dispatcher.dispatchDue()).toBe(1);
+
+      const staffDetail = await request(app).get(`/api/incidents/${incident.id}`).set("Cookie", adminCookie);
+      expect(staffDetail.body.data.incident.notifications.map((n: { kind: string; status: string }) => `${n.kind}:${n.status}`).sort())
+        .toEqual(["CHANNEL_DOWN:FAILED", "CHANNEL_DOWN:SENT", "CHANNEL_RECOVERED:SENT"]);
+      const viewerDetail = await request(app).get(`/api/incidents/${incident.id}`).set("Cookie", viewerCookie);
+      expect(viewerDetail.status).toBe(200);
+      expect(viewerDetail.body.data.incident.notifications).toBeUndefined();
+    } finally {
+      await prisma.notificationRecipient.updateMany({
+        where: { id: { in: [delivered.id, failing.id] } },
+        data: { active: false },
+      });
+    }
   });
 
   it("rejects invalid simulated targets and reports missing channels", async () => {

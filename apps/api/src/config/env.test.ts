@@ -44,4 +44,14 @@ describe("loadConfig", () => {
       }),
     ).toThrow(/solo acepta host o autoridad host:puerto/);
   });
+
+  it("usa el transporte JSON sin red por defecto y exige host para SMTP real", () => {
+    const base = { DATABASE_URL: "postgresql://simona:local-only@localhost:5432/simona_bn" };
+
+    expect(loadConfig(base).NOTIFICATIONS_DRIVER).toBe("json");
+    expect(() => loadConfig({ ...base, NOTIFICATIONS_DRIVER: "smtp" }))
+      .toThrow(/SMTP_HOST es obligatorio/);
+    expect(() => loadConfig({ ...base, SMTP_USER: "usuario" }))
+      .toThrow(/SMTP_USER y SMTP_PASS deben configurarse juntos/);
+  });
 });

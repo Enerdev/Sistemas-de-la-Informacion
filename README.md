@@ -2,7 +2,7 @@
 
 Monorepo inicial de SIMONA-BN, un proyecto universitario de monitoreo de disponibilidad con canales y servicios **simulados**. No se conecta a sistemas internos del Banco de la Nación, no hace pagos y no procesa transacciones reales.
 
-La etapa actual incluye autenticación con sesiones persistidas, roles, catálogo, M1 (verificaciones periódicas/manuales persistidas) y M2 (apertura automática y gestión auditable de incidencias). Notificaciones por correo y portal público no están implementados.
+La etapa actual incluye autenticación con sesiones persistidas, roles, catálogo, M1 (verificaciones periódicas/manuales persistidas), M2 (apertura automática y gestión auditable de incidencias) y M3 (alertas por correo de caída y restablecimiento con registro de envíos y reintentos). El portal público, los indicadores y los reportes aún no están implementados.
 
 ## Requisitos
 
@@ -159,6 +159,30 @@ Las otras transiciones responden `409`; un `VIEWER` no puede gestionar incidenci
 - `PATCH /api/incidents/:id/status` con `{ "status": "IN_PROGRESS", "comment": "..." }`
 
 El panel React permite filtrar, revisar detalle y evidencia, separar recuperación técnica de resolución administrativa y aplicar transiciones permitidas por rol.
+
+## Alertas y notificaciones M3
+
+Cuando M1 abre una incidencia por caída, o registra la recuperación técnica de un canal que tenía una incidencia, se crea una notificación por cada destinatario activo suscrito a ese evento. Las notificaciones se guardan en la misma transacción que la verificación (patrón *outbox*), de modo que no se pierde ninguna alerta si el envío falla.
+
+Flujo: **canal cae → incidencia → notificación `PENDIENTE` → envío con Nodemailer → `ENVIADA` o reintento**. Si el envío falla, se reintenta a los 30 s y a los 60 s; tras el tercer intento queda `FALLIDA` con el último error, y un ADMIN u OPERATOR puede reintentarla desde el panel. Cada fila guarda destinatario, asunto, cuerpo, instante del evento, intentos, error, identificador del mensaje, enlace de vista previa y hora de envío; con esto se mide el **tiempo de comunicación** (envío − detección).
+
+Transportes (`NOTIFICATIONS_DRIVER` en `apps/api/.env`, requiere reiniciar la API):
+
+| Valor | Uso |
+|---|---|
+| `json` (predeterminado) | Sin red: Nodemailer genera el correo completo, pero no sale del servidor. Usado por las pruebas. |
+| `ethereal` | Buzón SMTP de prueba de [Ethereal](https://ethereal.email). Los correos no llegan a personas reales; el panel muestra el enlace **Ver correo**. Recomendado para la demostración. |
+| `smtp` | Servidor SMTP real (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`). Usa solo cuentas autorizadas. |
+
+Para demostrar errores y reintentos con `json` o `ethereal`, registra un destinatario con dominio `@fallo.simona.test`: su envío se rechaza de forma simulada. El seed crea el destinatario ficticio `jefatura-ti@simona.test`.
+
+Endpoints (ADMIN u OPERATOR; la gestión de destinatarios es solo ADMIN):
+
+- `GET /api/notifications?status=&kind=&channelId=&incidentId=&limit=&cursor=`
+- `POST /api/notifications/:id/retry` (solo notificaciones `FAILED`)
+- `GET /api/notifications/recipients`, `POST /api/notifications/recipients`, `PATCH /api/notifications/recipients/:id`
+
+El detalle de una incidencia incluye sus notificaciones para ADMIN y OPERATOR; un `VIEWER` no ve destinatarios.
 
 ## Pruebas, tipos y compilaciones
 

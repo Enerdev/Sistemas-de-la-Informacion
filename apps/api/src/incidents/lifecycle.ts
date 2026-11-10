@@ -19,6 +19,11 @@ const activeStatuses = [
 type Transaction = Prisma.TransactionClient;
 type IncidentRepository = Pick<PrismaClient, "$transaction">;
 
+export type MonitoringIncidentOutcome =
+  | { kind: "opened"; incidentId: string; reason: string }
+  | { kind: "recovered"; incidentId: string; reason: string }
+  | null;
+
 export type IncidentActor = {
   userId: string;
   role: "ADMIN" | "OPERATOR" | "VIEWER";
@@ -64,7 +69,7 @@ export async function recordMonitoringIncident(
     failureThreshold: number;
     previousResultsNewestFirst: CheckResult[];
   },
-): Promise<void> {
+): Promise<MonitoringIncidentOutcome> {
   if (
     input.previousStatus === ChannelStatus.UNAVAILABLE
     && input.newStatus !== ChannelStatus.UNAVAILABLE
@@ -73,48 +78,51 @@ export async function recordMonitoringIncident(
       where: { channelId: input.channelId, recoveredAt: null },
       orderBy: { openedAt: "desc" },
     });
-    if (latestIncident) {
-      await transaction.incident.update({
-        where: { id: latestIncident.id },
-        data: { recoveredAt: input.checkedAt },
-      });
-      await transaction.incidentEvent.create({
-        data: {
-          incidentId: latestIncident.id,
-          checkId: input.checkId,
-          actorType: IncidentActorType.SYSTEM,
-          kind: IncidentEventKind.CHANNEL_RECOVERED,
-          previousStatus: latestIncident.status,
-          newStatus: latestIncident.status,
-          note: `Recuperación técnica detectada: el canal pasó a ${input.newStatus}. La gestión administrativa de la incidencia continúa.`,
-          createdAt: input.checkedAt,
-        },
-      });
-    }
-    return;
+    if (!latestIncident) return null;
+    await transaction.incident.update({
+      where: { id: latestIncident.id },
+      data: { recoveredAt: input.checkedAt },
+    });
+    await transaction.incidentEvent.create({
+      data: {
+        incidentId: latestIncident.id,
+        checkId: input.checkId,
+        actorType: IncidentActorType.SYSTEM,
+        kind: IncidentEventKind.CHANNEL_RECOVERED,
+        previousStatus: latestIncident.status,
+        newStatus: latestIncident.status,
+        note: `Recuperación técnica detectada: el canal pasó a ${input.newStatus}. La gestión administrativa de la incidencia continúa.`,
+        createdAt: input.checkedAt,
+      },
+    });
+    return {
+      kind: "recovered",
+      incidentId: latestIncident.id,
+      reason: `Recuperación técnica: el canal pasó de CAÍDO a ${input.newStatus}.`,
+    };
   }
 
-  if (input.newStatus !== ChannelStatus.UNAVAILABLE) return;
+  if (input.newStatus !== ChannelStatus.UNAVAILABLE) return null;
 
   let consecutiveFailures = 1;
   for (const result of input.previousResultsNewestFirst) {
     if (!failureResults.includes(result)) break;
     consecutiveFailures += 1;
   }
-  if (consecutiveFailures < input.failureThreshold) return;
+  if (consecutiveFailures < input.failureThreshold) return null;
 
   const activeIncident = await transaction.incident.findFirst({
     where: { channelId: input.channelId, status: { in: activeStatuses } },
     select: { id: true },
   });
-  if (activeIncident) return;
+  if (activeIncident) return null;
 
   const latestIncident = await transaction.incident.findFirst({
     where: { channelId: input.channelId },
     orderBy: { openedAt: "desc" },
   });
   if (latestIncident && latestIncident.recoveredAt === null) {
-    return;
+    return null;
   }
 
   const reason = `Canal CAÍDO tras ${consecutiveFailures} fallos consecutivos; política: ${input.failureThreshold}.`;
@@ -154,6 +162,7 @@ export async function recordMonitoringIncident(
   if (!incident.id) {
     throw new Error("No se pudo asignar un identificador a la incidencia automática");
   }
+  return { kind: "opened", incidentId: incident.id, reason };
 }
 
 export async function transitionIncident(

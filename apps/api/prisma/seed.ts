@@ -48,6 +48,13 @@ async function seed(): Promise<void> {
     });
   }
 
+  // Destinatario ficticio de demostración (dominio .test reservado: nunca llega a una persona real).
+  await prisma.notificationRecipient.upsert({
+    where: { email: "jefatura-ti@simona.test" },
+    create: { email: "jefatura-ti@simona.test", name: "Jefatura de TI (demo)" },
+    update: {},
+  });
+
   if (config.SEED_ADMIN_EMAIL && config.SEED_ADMIN_PASSWORD) {
     const passwordResult = seedAdminPasswordSchema.safeParse(config.SEED_ADMIN_PASSWORD);
     if (!passwordResult.success) {
@@ -63,7 +70,7 @@ async function seed(): Promise<void> {
     });
   }
 
-  console.info("Seed completado: canales simulados asegurados; no se mostraron credenciales.");
+  console.info("Seed completado: canales simulados y destinatario de demostración asegurados; no se mostraron credenciales.");
 }
 
 seed()

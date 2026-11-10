@@ -82,6 +82,9 @@ router.get(
           },
           orderBy: { createdAt: "asc" },
         },
+        ...(request.auth?.role === UserRole.VIEWER
+          ? {}
+          : { notifications: { orderBy: { createdAt: "asc" as const } } }),
       },
     });
     if (!incident) {

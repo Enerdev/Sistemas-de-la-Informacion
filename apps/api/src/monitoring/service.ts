@@ -1,4 +1,4 @@
-import { ChannelStatus } from "@prisma/client";
+import { ChannelStatus, NotificationKind } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../errors/app-error.js";
@@ -6,6 +6,7 @@ import { classifyChannelStatus } from "./classification.js";
 import type { CheckObservation, CheckResultRecord } from "./types.js";
 import type { ServiceVerifier } from "./verifiers.js";
 import { recordMonitoringIncident } from "../incidents/lifecycle.js";
+import { enqueueChannelNotifications } from "../notifications/outbox.js";
 
 const maximumThreshold = 20;
 
@@ -200,7 +201,7 @@ export class MonitoringService {
         });
       }
 
-      await recordMonitoringIncident(transaction, {
+      const incidentOutcome = await recordMonitoringIncident(transaction, {
         channelId: channel.id,
         previousStatus: current.currentStatus,
         newStatus: observedStatus,
@@ -211,6 +212,17 @@ export class MonitoringService {
         failureThreshold: channel.monitoringConfig.failureThreshold,
         previousResultsNewestFirst: previousChecks.map(({ result }) => result),
       });
+      if (incidentOutcome) {
+        await enqueueChannelNotifications(transaction, {
+          kind: incidentOutcome.kind === "opened"
+            ? NotificationKind.CHANNEL_DOWN
+            : NotificationKind.CHANNEL_RECOVERED,
+          channelId: channel.id,
+          incidentId: incidentOutcome.incidentId,
+          eventAt: checkedAt,
+          reason: incidentOutcome.reason,
+        });
+      }
 
       return check;
     });

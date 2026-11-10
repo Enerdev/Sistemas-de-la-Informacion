@@ -1,5 +1,8 @@
 import "dotenv/config";
 
+// Las pruebas nunca envían correos por la red, sin importar la configuración local.
+process.env.NOTIFICATIONS_DRIVER = "json";
+
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 if (testDatabaseUrl) {
   const parsedTestDatabaseUrl = new URL(testDatabaseUrl);

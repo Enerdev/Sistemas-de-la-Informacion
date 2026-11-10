@@ -49,7 +49,7 @@ describe("incident actions driven by monitoring", () => {
     transaction.incident.findFirst = vi.fn().mockResolvedValue(null);
     transaction.incident.create = vi.fn().mockResolvedValue({ id: "incident-1" });
 
-    await recordMonitoringIncident(transaction, {
+    const outcome = await recordMonitoringIncident(transaction, {
       ...baseInput,
       previousStatus: ChannelStatus.DEGRADED,
       newStatus: ChannelStatus.UNAVAILABLE,
@@ -72,13 +72,14 @@ describe("incident actions driven by monitoring", () => {
         },
       }),
     }));
+    expect(outcome).toMatchObject({ kind: "opened", incidentId: "incident-1" });
   });
 
   it("deduplicates further failures while an equivalent active incident exists", async () => {
     const transaction = transactionMock();
     transaction.incident.findFirst = vi.fn().mockResolvedValueOnce({ id: "existing-active" });
 
-    await recordMonitoringIncident(transaction, {
+    const outcome = await recordMonitoringIncident(transaction, {
       ...baseInput,
       newStatus: ChannelStatus.UNAVAILABLE,
       previousResultsNewestFirst: [CheckResult.FAILURE, CheckResult.FAILURE],
@@ -86,6 +87,7 @@ describe("incident actions driven by monitoring", () => {
 
     expect(transaction.incident.create).not.toHaveBeenCalled();
     expect(transaction.incident.findFirst).toHaveBeenCalledOnce();
+    expect(outcome).toBeNull();
   });
 
   it("records technical recovery without resolving the administrative incident", async () => {
@@ -97,7 +99,7 @@ describe("incident actions driven by monitoring", () => {
     transaction.incident.update = vi.fn().mockResolvedValue({});
     transaction.incidentEvent.create = vi.fn().mockResolvedValue({});
 
-    await recordMonitoringIncident(transaction, {
+    const outcome = await recordMonitoringIncident(transaction, {
       ...baseInput,
       previousStatus: ChannelStatus.UNAVAILABLE,
       newStatus: ChannelStatus.AVAILABLE,
@@ -116,5 +118,6 @@ describe("incident actions driven by monitoring", () => {
       }),
     }));
     expect(transaction.incident.create).not.toHaveBeenCalled();
+    expect(outcome).toMatchObject({ kind: "recovered", incidentId: "incident-1" });
   });
 });
