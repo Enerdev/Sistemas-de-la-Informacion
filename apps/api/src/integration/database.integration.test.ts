@@ -22,6 +22,8 @@ const historyChannelCode = `HIST_${suffix}`;
 const incidentChannelCode = `INC_${suffix}`;
 const concurrentChannelCode = `RACE_${suffix}`;
 const notificationChannelCode = `NOTIF_${suffix}`;
+const reportChannelCode = `REPORT_${suffix}`;
+const otherReportChannelCode = `REPORT2_${suffix}`;
 const deliveredRecipientEmail = `m3-ok-${suffix.toLowerCase()}@simona.test`;
 const failingRecipientEmail = `m3-${suffix.toLowerCase()}@fallo.simona.test`;
 const testPassword = "Database-Test-Password-2026!";
@@ -88,16 +90,31 @@ suite("persistencia e integración PostgreSQL", () => {
   }, 30_000);
 
   afterAll(async () => {
+    await prisma.failureReport.deleteMany({
+      where: { channel: { code: { in: [reportChannelCode, otherReportChannelCode] } } },
+    });
     await prisma.incident.deleteMany({
       where: {
         channel: {
-          code: { in: [channelCode, historyChannelCode, incidentChannelCode, concurrentChannelCode, notificationChannelCode] },
+          code: {
+            in: [
+              channelCode,
+              historyChannelCode,
+              incidentChannelCode,
+              concurrentChannelCode,
+              notificationChannelCode,
+              reportChannelCode,
+              otherReportChannelCode,
+            ],
+          },
         },
       },
     });
     await prisma.channel.deleteMany({ where: { code: { in: [channelCode, historyChannelCode] } } });
     await prisma.channel.deleteMany({
-      where: { code: { in: [incidentChannelCode, concurrentChannelCode, notificationChannelCode] } },
+      where: {
+        code: { in: [incidentChannelCode, concurrentChannelCode, notificationChannelCode, reportChannelCode, otherReportChannelCode] },
+      },
     });
     await prisma.notificationRecipient.deleteMany({
       where: { email: { in: [deliveredRecipientEmail, failingRecipientEmail] } },
@@ -536,6 +553,108 @@ suite("persistencia e integración PostgreSQL", () => {
         data: { active: false },
       });
     }
+  });
+
+  it("serves the public portal and lets staff review citizen failure reports (M4)", async () => {
+    const [channel, otherChannel] = await Promise.all([reportChannelCode, otherReportChannelCode].map((code) =>
+      prisma.channel.create({
+        data: {
+          code,
+          name: `Canal portal ${code}`,
+          type: "INTERNET_BANKING",
+          simulatedTarget: "sim://down",
+          currentStatus: ChannelStatus.AVAILABLE,
+          monitoringConfig: { create: {} },
+        },
+      })));
+    const monitoring = new MonitoringService(new SimulatedServiceVerifier());
+    for (let index = 0; index < 3; index += 1) {
+      await monitoring.runManualCheck(channel!.id);
+      await monitoring.runManualCheck(otherChannel!.id);
+    }
+    const incident = await prisma.incident.findFirstOrThrow({ where: { channelId: channel!.id } });
+    const otherIncident = await prisma.incident.findFirstOrThrow({ where: { channelId: otherChannel!.id } });
+
+    const status = await request(app).get("/api/public/status");
+    expect(status.status).toBe(200);
+    const publicChannel = status.body.data.channels.find((item: { code: string }) => item.code === reportChannelCode);
+    expect(publicChannel).toMatchObject({ currentStatus: "UNAVAILABLE", lastCheckedAt: expect.any(String) });
+    expect(publicChannel.simulatedTarget).toBeUndefined();
+    expect(publicChannel.monitoringConfig).toBeUndefined();
+
+    const publicIncidents = await request(app).get("/api/public/incidents");
+    expect(publicIncidents.status).toBe(200);
+    const publicIncident = publicIncidents.body.data.incidents.find((item: { id: string }) => item.id === incident.id);
+    expect(publicIncident).toMatchObject({ status: "OPEN", channel: { code: reportChannelCode } });
+    expect(publicIncident.evidence).toBeUndefined();
+    expect(publicIncident.reason).toBeUndefined();
+
+    const submitted = await request(app).post("/api/public/reports").send({
+      channelId: channel!.id,
+      description: "No puedo ingresar a la banca por internet desde esta mañana.",
+      contactEmail: "Ciudadano@Correo.Test",
+      occurredAt: new Date(Date.now() - 60_000).toISOString(),
+    });
+    expect(submitted.status).toBe(201);
+    const referenceCode = submitted.body.data.report.referenceCode as string;
+    expect(referenceCode).toMatch(/^R-[A-Z2-9]{8}$/);
+    const stored = await prisma.failureReport.findUniqueOrThrow({ where: { referenceCode } });
+    expect(stored).toMatchObject({ status: "NEW", contactEmail: "ciudadano@correo.test", channelId: channel!.id });
+
+    const missingChannel = await request(app).post("/api/public/reports").send({
+      channelId: "00000000-0000-4000-8000-000000000000",
+      description: "Reporte para un canal que no existe.",
+    });
+    expect(missingChannel.status).toBe(404);
+
+    const lookup = await request(app).get(`/api/public/reports/${referenceCode.toLowerCase()}`);
+    expect(lookup.status).toBe(200);
+    expect(lookup.body.data.report).toMatchObject({ referenceCode, status: "NEW", incident: null });
+    expect(lookup.body.data.report.contactEmail).toBeUndefined();
+    expect(lookup.body.data.report.description).toBeUndefined();
+    expect((await request(app).get("/api/public/reports/R-AAAAAAAA")).status).toBe(404);
+
+    expect((await request(app).get("/api/reports").set("Cookie", viewerCookie)).status).toBe(403);
+    const staffList = await request(app).get(`/api/reports?status=NEW&channelId=${channel!.id}`).set("Cookie", operatorCookie);
+    expect(staffList.status).toBe(200);
+    expect(staffList.body.data.reports).toHaveLength(1);
+    expect(staffList.body.data.reports[0]).toMatchObject({ contactEmail: "ciudadano@correo.test" });
+
+    const wrongChannel = await request(app)
+      .patch(`/api/reports/${stored.id}`)
+      .set("Cookie", operatorCookie)
+      .send({ status: "LINKED", incidentId: otherIncident.id });
+    expect(wrongChannel.status).toBe(409);
+    const missingIncident = await request(app)
+      .patch(`/api/reports/${stored.id}`)
+      .set("Cookie", operatorCookie)
+      .send({ status: "LINKED" });
+    expect(missingIncident.status).toBe(400);
+
+    const linked = await request(app)
+      .patch(`/api/reports/${stored.id}`)
+      .set("Cookie", operatorCookie)
+      .send({ status: "LINKED", incidentId: incident.id, note: "Coincide con la caída detectada." });
+    expect(linked.status).toBe(200);
+    expect(linked.body.data.report).toMatchObject({
+      status: "LINKED",
+      incident: { id: incident.id },
+      reviewNote: "Coincide con la caída detectada.",
+      reviewedAt: expect.any(String),
+      reviewedBy: { email: operatorEmail },
+    });
+
+    const followed = await request(app).get(`/api/public/reports/${referenceCode}`);
+    expect(followed.body.data.report).toMatchObject({
+      status: "LINKED",
+      reviewedAt: expect.any(String),
+      incident: { status: "OPEN", summary: "Canal no disponible" },
+    });
+
+    await expect(prisma.failureReport.update({
+      where: { id: stored.id },
+      data: { incidentId: null },
+    })).rejects.toThrow();
   });
 
   it("rejects invalid simulated targets and reports missing channels", async () => {

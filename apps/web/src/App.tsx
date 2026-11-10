@@ -7,6 +7,7 @@ import {
   notificationKindLabels,
 } from "./NotificationsPanel";
 import type { Notification } from "./NotificationsPanel";
+import { ReportsPanel } from "./ReportsPanel";
 
 type User = {
   id: string;
@@ -137,7 +138,7 @@ function App() {
   const [history, setHistory] = useState<Record<string, Check[]>>({});
   const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({});
   const [checkingChannel, setCheckingChannel] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"channels" | "incidents" | "notifications">("channels");
+  const [activeTab, setActiveTab] = useState<"channels" | "incidents" | "notifications" | "reports">("channels");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -400,7 +401,15 @@ function App() {
               Notificaciones
             </button>
           )}
-          <a className="nav-link" href="#acerca">Acerca del proyecto</a>
+          {canManage && (
+            <button
+              className={`nav-link nav-button ${activeTab === "reports" ? "active" : ""}`}
+              onClick={() => setActiveTab("reports")}
+            >
+              Reportes
+            </button>
+          )}
+          <a className="nav-link" href="/estado">Portal público</a>
         </nav>
         <div className="account-menu">
           <span className="role-tag">{page.user.role}</span>
@@ -560,8 +569,10 @@ function App() {
           </>
         ) : activeTab === "incidents" ? (
           <IncidentsPanel channels={channels} user={page.user} setNotice={setNotice} />
-        ) : (
+        ) : activeTab === "notifications" ? (
           <NotificationsPanel isAdmin={page.user.role === "ADMIN"} setNotice={setNotice} />
+        ) : (
+          <ReportsPanel setNotice={setNotice} />
         )}
 
         <section className="about-section" id="acerca">
@@ -571,7 +582,7 @@ function App() {
             <h2>Una base para observar y aprender.</h2>
             <p>Proyecto universitario. No se conecta con sistemas internos del Banco de la Nación y no procesa transacciones reales.</p>
           </div>
-          <span className="version-label">ALERTAS M3 · 0.4.0</span>
+          <span className="version-label">PORTAL M4 · 0.5.0</span>
         </section>
       </main>
 
@@ -655,6 +666,9 @@ function AuthScreen({
           </button>
         </div>
       </section>
+      <p className="auth-footnote">
+        ¿Solo quieres saber si un canal funciona? <a className="text-link" href="/estado">Consulta el portal público</a>.
+      </p>
       <p className="auth-footnote">SIMONA-BN no se conecta a sistemas reales ni realiza pagos.</p>
     </main>
   );

@@ -82,6 +82,13 @@ enum NotificationStatus {
   FAILED
 }
 
+enum FailureReportStatus {
+  NEW
+  REVIEWED
+  LINKED
+  DISMISSED
+}
+
 model User {
   id                   String                 @id @default(uuid()) @db.Uuid
   email                String                 @unique @db.VarChar(254)
@@ -90,6 +97,7 @@ model User {
   sessions             Session[]
   incidentEvents       IncidentEvent[]
   channelStatusChanges ChannelStatusHistory[]
+  reviewedReports      FailureReport[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
@@ -123,6 +131,7 @@ model Channel {
   incidents         Incident[]
   statusHistory     ChannelStatusHistory[]
   notifications     Notification[]
+  failureReports    FailureReport[]
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
@@ -182,6 +191,7 @@ model Incident {
   detectionCheck   ChannelCheck?    @relation("IncidentDetection", fields: [detectionCheckId], references: [id], onDelete: SetNull)
   events           IncidentEvent[]
   notifications    Notification[]
+  failureReports   FailureReport[]
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -272,4 +282,28 @@ model Notification {
   @@index([channelId, createdAt])
   @@index([recipientId])
   @@map("notifications")
+}
+
+model FailureReport {
+  id            String              @id @default(uuid()) @db.Uuid
+  referenceCode String              @unique @db.VarChar(16)
+  channelId     String              @db.Uuid
+  incidentId    String?             @db.Uuid
+  reviewedById  String?             @db.Uuid
+  status        FailureReportStatus @default(NEW)
+  description   String              @db.VarChar(1000)
+  contactEmail  String?             @db.VarChar(254)
+  occurredAt    DateTime?
+  reviewNote    String?             @db.VarChar(500)
+  reviewedAt    DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  channel       Channel             @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  incident      Incident?           @relation(fields: [incidentId], references: [id], onDelete: Restrict)
+  reviewedBy    User?               @relation(fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([channelId, createdAt])
+  @@index([incidentId])
+  @@map("failure_reports")
 }

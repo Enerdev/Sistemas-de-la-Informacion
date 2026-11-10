@@ -2,7 +2,7 @@
 
 Monorepo inicial de SIMONA-BN, un proyecto universitario de monitoreo de disponibilidad con canales y servicios **simulados**. No se conecta a sistemas internos del Banco de la Nación, no hace pagos y no procesa transacciones reales.
 
-La etapa actual incluye autenticación con sesiones persistidas, roles, catálogo, M1 (verificaciones periódicas/manuales persistidas), M2 (apertura automática y gestión auditable de incidencias) y M3 (alertas por correo de caída y restablecimiento con registro de envíos y reintentos). El portal público, los indicadores y los reportes aún no están implementados.
+La etapa actual incluye autenticación con sesiones persistidas, roles, catálogo, M1 (verificaciones periódicas/manuales persistidas), M2 (apertura automática y gestión auditable de incidencias) M3 (alertas por correo de caída y restablecimiento con registro de envíos y reintentos) y M4 (portal público de estado con reporte ciudadano de fallas). Los indicadores, el cronograma de pagos y los reportes PDF/CSV aún no están implementados.
 
 ## Requisitos
 
@@ -78,7 +78,8 @@ npm run dev:api
 npm run dev:web
 ```
 
-- Web: <http://localhost:5173>
+- Web (personal): <http://localhost:5173>
+- Portal público: <http://localhost:5173/estado>
 - API: <http://localhost:3001>
 - Salud del proceso: <http://localhost:3001/api/health>
 
@@ -183,6 +184,23 @@ Endpoints (ADMIN u OPERATOR; la gestión de destinatarios es solo ADMIN):
 - `GET /api/notifications/recipients`, `POST /api/notifications/recipients`, `PATCH /api/notifications/recipients/:id`
 
 El detalle de una incidencia incluye sus notificaciones para ADMIN y OPERATOR; un `VIEWER` no ve destinatarios.
+
+## Portal público M4
+
+En `/estado` cualquier persona, sin iniciar sesión, puede:
+
+- consultar el estado actual de cada canal y un resumen general (se actualiza cada 30 s);
+- ver las incidencias activas y las de los últimos 7 días;
+- **reportar una falla** con canal, descripción (10–1000 caracteres), fecha opcional y correo de contacto opcional;
+- consultar el avance de su reporte con el código de seguimiento `R-XXXXXXXX`.
+
+El portal no expone destinos simulados, configuración, evidencia técnica ni correos de contacto. El formulario se valida en el navegador y en la API: correo con formato válido, fecha que no esté en el futuro ni tenga más de 30 días, campos desconocidos rechazados y un campo trampa oculto contra bots. La API limita los envíos a 5 reportes cada 15 minutos por IP (responde `429`).
+
+El personal (ADMIN u OPERATOR) revisa los reportes en la pestaña **Reportes**: puede marcarlos como revisados, descartarlos o **vincularlos a una incidencia del mismo canal**. La base de datos impide un reporte vinculado sin incidencia y una incidencia con reportes vinculados no puede borrarse.
+
+Endpoints públicos (sin sesión): `GET /api/public/status`, `GET /api/public/incidents`, `POST /api/public/reports`, `GET /api/public/reports/:codigo`. Internos (ADMIN/OPERATOR): `GET /api/reports?status=&channelId=&limit=&cursor=`, `PATCH /api/reports/:id` con `{ "status": "REVIEWED" | "LINKED" | "DISMISSED", "incidentId"?, "note"? }`.
+
+En un despliegue detrás de Nginx, la ruta `/estado` debe servir `index.html` (`try_files $uri /index.html;`) y Express debe confiar en el proxy (`trust proxy`) para que el límite por IP use la IP real.
 
 ## Pruebas, tipos y compilaciones
 

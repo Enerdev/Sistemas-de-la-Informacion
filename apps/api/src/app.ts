@@ -5,6 +5,8 @@ import { AppError } from "./errors/app-error.js";
 import { errorHandler } from "./http/error-handler.js";
 import { incidentsRouter } from "./incidents/routes.js";
 import { notificationsRouter } from "./notifications/routes.js";
+import { publicRouter } from "./public/routes.js";
+import { failureReportsRouter } from "./reports/routes.js";
 
 export const app = express();
 
@@ -15,6 +17,8 @@ app.use("/api/auth", authRouter);
 app.use("/api/channels", channelsRouter);
 app.use("/api/incidents", incidentsRouter);
 app.use("/api/notifications", notificationsRouter);
+app.use("/api/reports", failureReportsRouter);
+app.use("/api/public", publicRouter);
 
 app.get("/api/health", (_request, response) => {
   response.status(200).json({

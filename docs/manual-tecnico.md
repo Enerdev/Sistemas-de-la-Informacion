@@ -15,6 +15,7 @@ flowchart LR
     Monitor --> Verifier[Verificador simulated por defecto]
     Verifier -. Alternativa restringida .-> HTTP[Verificador HTTPS allowlist]
     Monitor --> Incident[M2 ciclo de incidencias]
+    Public[Portal público /estado] -->|/api/public| Express
     Incident --> Outbox[M3 cola de notificaciones]
     Outbox --> Mailer[Nodemailer: json, Ethereal o SMTP]
     Auth --> Prisma[Prisma Client]
@@ -75,6 +76,7 @@ El esquema completo y sus enums están en [`apps/api/prisma/schema.prisma`](../a
 | `IncidentEvent` (`incident_events`) | Apertura, cambios administrativos y recuperación técnica; actor y verificación opcionales |
 | `ChannelStatusHistory` (`channel_status_history`) | Historial de cambios de estado del canal y su origen |
 | `NotificationRecipient` (`notification_recipients`) | Correo único, nombre, activo y suscripción a caídas/restablecimientos |
+| `FailureReport` (`failure_reports`) | Reporte ciudadano: código de seguimiento único, canal, descripción, contacto y fecha opcionales, estado de revisión (`NEW`, `REVIEWED`, `LINKED`, `DISMISSED`), incidencia vinculada, revisor y nota |
 | `Notification` (`notifications`) | Evento (`CHANNEL_DOWN`/`CHANNEL_RECOVERED`), canal, incidencia, destinatario, mensaje, estado de envío, intentos, error, id del proveedor, vista previa y fechas |
 
 Enums relevantes:
@@ -85,7 +87,7 @@ Enums relevantes:
 - Estado de incidencia: `OPEN`, `ACKNOWLEDGED`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`.
 - Severidad: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
 
-La migración inicial crea un índice único parcial que impide más de una incidencia activa (`OPEN`, `ACKNOWLEDGED`, `IN_PROGRESS`) por canal. Las migraciones M1 y M2 añaden metadatos de verificación y evidencia/recuperación de incidencias. La migración M3 crea destinatarios y notificaciones, con restricciones `CHECK` que impiden intentos negativos y un estado `SENT` sin fecha de envío.
+La migración inicial crea un índice único parcial que impide más de una incidencia activa (`OPEN`, `ACKNOWLEDGED`, `IN_PROGRESS`) por canal. Las migraciones M1 y M2 añaden metadatos de verificación y evidencia/recuperación de incidencias. La migración M3 crea destinatarios y notificaciones, con restricciones `CHECK` que impiden intentos negativos y un estado `SENT` sin fecha de envío. La migración M4 crea los reportes ciudadanos con `CHECK` que exigen incidencia en `LINKED` y fecha de revisión fuera de `NEW`; la incidencia vinculada usa `ON DELETE RESTRICT`.
 
 ## 4. Instalación y configuración local
 
@@ -230,6 +232,19 @@ Transiciones aceptadas: `OPEN → IN_PROGRESS`; `ACKNOWLEDGED → IN_PROGRESS`; 
 
 Las notificaciones se insertan en la transacción de la verificación (outbox). El despachador las envía tras cada verificación manual y en cada barrido del scheduler (15 s); reserva cada fila antes de enviarla para evitar duplicados y reintenta a los 30 s y 60 s antes de marcarla `FAILED`.
 
+### Portal público y reportes (M4)
+
+| Método | Ruta | Acceso | Función |
+|---|---|---|---|
+| `GET` | `/api/public/status` | Público | Canales con estado y última verificación; sin destino ni configuración |
+| `GET` | `/api/public/incidents` | Público | Incidencias activas y de los últimos 7 días (máx. 20), sin motivo ni evidencia |
+| `POST` | `/api/public/reports` | Público; 5 por IP cada 15 min | Registrar reporte `{ channelId, description, occurredAt?, contactEmail?, website? }`; devuelve código `R-XXXXXXXX` |
+| `GET` | `/api/public/reports/:referenceCode` | Público; 30 por IP cada 15 min | Seguimiento: estado, revisión e incidencia vinculada, sin datos de contacto |
+| `GET` | `/api/reports?status=&channelId=&limit=&cursor=` | ADMIN/OPERATOR | Bandeja de reportes con contacto |
+| `PATCH` | `/api/reports/:id` | ADMIN/OPERATOR | Revisar, descartar o vincular a una incidencia del mismo canal |
+
+El límite por IP está en memoria (`apps/api/src/http/rate-limit.ts`): es válido para una instancia. En producción detrás de un proxy hay que configurar `trust proxy` en Express.
+
 ## 8. Ejecución de la aplicación
 
 Después de configurar PostgreSQL, migrar y ejecutar seed, abra dos terminales en la raíz:
@@ -243,6 +258,7 @@ npm run dev:web
 ```
 
 - Web: <http://localhost:5173>
+- Portal público: <http://localhost:5173/estado>
 - API: <http://localhost:3001>
 - Salud del proceso: <http://localhost:3001/api/health>
 
@@ -263,7 +279,7 @@ Los archivos de test cubren validación, autenticación, clasificación, verific
 
 ### Resultado actualizado (10 de noviembre de 2026)
 
-Con PostgreSQL local y `TEST_DATABASE_URL` configurada se ejecutan **61 pruebas sin omisiones**, incluido el recorrido M1→M2→M3: caída simulada, apertura de incidencia, notificación enviada, rechazo simulado con reintentos hasta `FAILED`, reintento manual, recuperación y notificación de restablecimiento.
+Con PostgreSQL local y `TEST_DATABASE_URL` configurada se ejecutan **68 pruebas sin omisiones**. Incluyen el portal M4 (estado público sin datos internos, reporte ciudadano, seguimiento, revisión y vinculación con validación de canal) y el recorrido M1→M2→M3: caída simulada, apertura de incidencia, notificación enviada, rechazo simulado con reintentos hasta `FAILED`, reintento manual, recuperación y notificación de restablecimiento.
 
 ### Resultado de QA anterior
 
@@ -302,4 +318,5 @@ Para una nueva entrega, repita los comandos en el entorno destino y adjunte sali
 - [`apps/api/src/monitoring/service.ts`](../apps/api/src/monitoring/service.ts), persistencia y evaluación M1.
 - [`apps/api/src/incidents/lifecycle.ts`](../apps/api/src/incidents/lifecycle.ts), ciclo M2.
 - [`apps/api/src/notifications/`](../apps/api/src/notifications/), cola, despachador y transportes M3.
+- [`apps/api/src/public/routes.ts`](../apps/api/src/public/routes.ts) y [`apps/api/src/reports/routes.ts`](../apps/api/src/reports/routes.ts), portal público y revisión de reportes M4.
 - [`QA-REPORT.md`](../QA-REPORT.md), resultados reportados y límites de la ejecución QA del 14/10/2026.
