@@ -14,6 +14,7 @@ const adminEmail = `simona-admin-${suffix.toLowerCase()}@example.invalid`;
 const operatorEmail = `simona-operator-${suffix.toLowerCase()}@example.invalid`;
 const viewerEmail = `simona-viewer-${suffix.toLowerCase()}@example.invalid`;
 const channelCode = `TEST_${suffix}`;
+const historyChannelCode = `HIST_${suffix}`;
 const incidentChannelCode = `INC_${suffix}`;
 const concurrentChannelCode = `RACE_${suffix}`;
 const testPassword = "Database-Test-Password-2026!";
@@ -81,9 +82,9 @@ suite("persistencia e integración PostgreSQL", () => {
 
   afterAll(async () => {
     await prisma.incident.deleteMany({
-      where: { channel: { code: { in: [channelCode, incidentChannelCode, concurrentChannelCode] } } },
+      where: { channel: { code: { in: [channelCode, historyChannelCode, incidentChannelCode, concurrentChannelCode] } } },
     });
-    await prisma.channel.deleteMany({ where: { code: channelCode } });
+    await prisma.channel.deleteMany({ where: { code: { in: [channelCode, historyChannelCode] } } });
     await prisma.channel.deleteMany({
       where: { code: { in: [incidentChannelCode, concurrentChannelCode] } },
     });
@@ -187,7 +188,7 @@ suite("persistencia e integración PostgreSQL", () => {
 
   it("persists manual simulated checks and returns a paginated channel history", async () => {
     const created = await request(app).post("/api/channels").set("Cookie", adminCookie).send({
-      code: channelCode,
+      code: historyChannelCode,
       name: "Canal de monitoreo simulado",
       type: "APP",
       simulatedTarget: "sim://down",
@@ -374,7 +375,7 @@ suite("persistencia e integración PostgreSQL", () => {
       .set("Cookie", adminCookie);
     expect(finalChannel.status).toBe(200);
     expect(finalChannel.body.data.channel.currentStatus).toBe("AVAILABLE");
-    expect(finalChannel.body.data.channel.checks).toHaveLength(5);
+    expect(finalChannel.body.data.channel.checks).toHaveLength(1);
     expect(finalChannel.body.data.channel.checks[0].observedStatus).toBe("AVAILABLE");
 
     await request(app)

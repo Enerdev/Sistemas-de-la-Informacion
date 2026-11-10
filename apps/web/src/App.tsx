@@ -710,7 +710,7 @@ function ChannelForm({
             required
             minLength={2}
             maxLength={40}
-            pattern="[A-Za-z][A-Za-z0-9_-]{1,39}"
+            pattern="[A-Za-z][A-Za-z0-9_\-]{1,39}"
             placeholder="SERVICIO_DEMO"
             value={code}
             onChange={(event) => setCode(event.target.value)}
@@ -734,7 +734,7 @@ function ChannelForm({
             required
             minLength={7}
             maxLength={200}
-            pattern="sim://[a-z0-9][a-z0-9/_-]*"
+            pattern="sim://[a-z0-9][a-z0-9\/_\-]*"
             value={simulatedTarget}
             onChange={(event) => setSimulatedTarget(event.target.value)}
           />
