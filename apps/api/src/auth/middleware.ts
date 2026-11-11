@@ -18,13 +18,19 @@ export const requireAuth: RequestHandler = async (request, _response, next) => {
       },
       select: {
         user: {
-          select: { id: true, email: true, role: true },
+          select: { id: true, email: true, role: true, active: true, mustChangePassword: true },
         },
       },
     });
 
-    if (!session) {
+    if (!session || !session.user.active) {
       throw new AppError("Sesión inválida o vencida", 401);
+    }
+    // Con contraseña temporal solo se permite consultar la sesión, cambiar la contraseña o salir.
+    if (session.user.mustChangePassword && !request.originalUrl.startsWith("/api/auth/")) {
+      throw new AppError("Debes cambiar tu contraseña temporal antes de continuar", 403, {
+        code: "PASSWORD_CHANGE_REQUIRED",
+      });
     }
 
     request.auth = {

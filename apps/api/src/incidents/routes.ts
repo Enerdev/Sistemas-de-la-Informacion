@@ -1,6 +1,7 @@
 import { IncidentSeverity, IncidentStatus, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
+import { recordAudit } from "../audit/audit.js";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../errors/app-error.js";
 import { asyncHandler } from "../http/async-handler.js";
@@ -111,6 +112,12 @@ router.patch(
       nextStatus: input.status,
       actor: { userId: actor.userId, role: actor.role },
       note: input.comment,
+    });
+    await recordAudit(request, {
+      action: "incident.transition",
+      entityType: "incident",
+      entityId: id,
+      summary: `Cambió la incidencia ${id.slice(0, 8)} a ${input.status}${input.comment ? `: ${input.comment}` : ""}`,
     });
     response.status(200).json({ data: { incident } });
   }),

@@ -16,7 +16,10 @@
     "db:generate": "npm run db:generate --workspace @simona-bn/api",
     "db:migrate": "npm run db:migrate --workspace @simona-bn/api --",
     "db:migrate:deploy": "npm run db:migrate:deploy --workspace @simona-bn/api",
-    "db:seed": "npm run db:seed --workspace @simona-bn/api"
+    "db:seed": "npm run db:seed --workspace @simona-bn/api",
+    "db:backup": "bash scripts/db/backup.sh",
+    "db:backup:verify": "bash scripts/db/verify-backup.sh",
+    "db:restore": "bash scripts/db/restore.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

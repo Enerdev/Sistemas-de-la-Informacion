@@ -12,3 +12,6 @@ coverage/
 # Prisma
 apps/api/src/generated/
 
+
+# Respaldos de la base de datos (contienen datos y hashes de contraseñas)
+backups/

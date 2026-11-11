@@ -2,6 +2,7 @@ import "dotenv/config";
 
 // Las pruebas nunca envían correos por la red, sin importar la configuración local.
 process.env.NOTIFICATIONS_DRIVER = "json";
+process.env.LOGIN_RATE_LIMIT_MAX = "1000";
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 if (testDatabaseUrl) {

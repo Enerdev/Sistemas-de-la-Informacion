@@ -94,6 +94,9 @@ model User {
   email                String                  @unique @db.VarChar(254)
   passwordHash         String                  @db.VarChar(255)
   role                 UserRole                @default(VIEWER)
+  active               Boolean                 @default(true)
+  mustChangePassword   Boolean                 @default(false)
+  lastLoginAt          DateTime?
   sessions             Session[]
   incidentEvents       IncidentEvent[]
   channelStatusChanges ChannelStatusHistory[]
@@ -338,4 +341,26 @@ model PaymentDate {
   @@unique([date, group])
   @@index([date])
   @@map("payment_dates")
+}
+
+// Bitácora de solo inserción: un disparador en PostgreSQL impide modificar o borrar filas.
+// No tiene clave foránea a usuarios para que borrar un usuario no altere el registro histórico.
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @db.Uuid
+  actorEmail String?  @db.VarChar(254)
+  actorRole  String?  @db.VarChar(20)
+  action     String   @db.VarChar(60)
+  entityType String   @db.VarChar(40)
+  entityId   String?  @db.VarChar(64)
+  summary    String   @db.VarChar(500)
+  details    Json?
+  ip         String?  @db.VarChar(64)
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
 }

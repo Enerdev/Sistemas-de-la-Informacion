@@ -1,6 +1,7 @@
 import express, { Router } from "express";
 import { UserRole } from "@prisma/client";
 import { z } from "zod";
+import { recordAudit } from "../audit/audit.js";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../errors/app-error.js";
 import { asyncHandler } from "../http/async-handler.js";
@@ -97,6 +98,12 @@ router.post(
           update: { description: row.description, importId: scheduleImport.id },
         });
       }
+      await recordAudit(request, {
+        action: "schedule.import",
+        entityType: "payment_schedule_import",
+        entityId: scheduleImport.id,
+        summary: `Importó ${input.fileName}: ${rows.length} fechas (${rows.length - updatedCount} nuevas, ${updatedCount} actualizadas)`,
+      }, transaction);
       return scheduleImport;
     }, { timeout: 30_000 });
 
@@ -109,7 +116,13 @@ router.delete(
   requireRole([UserRole.ADMIN], "Solo ADMIN puede eliminar fechas del cronograma"),
   asyncHandler(async (request, response) => {
     const id = idSchema.parse(request.params.id);
-    await prisma.paymentDate.delete({ where: { id } });
+    const removed = await prisma.paymentDate.delete({ where: { id } });
+    await recordAudit(request, {
+      action: "schedule.delete",
+      entityType: "payment_date",
+      entityId: id,
+      summary: `Eliminó la fecha de pago ${removed.date.toISOString().slice(0, 10)} (${removed.group})`,
+    });
     response.status(204).end();
   }),
 );

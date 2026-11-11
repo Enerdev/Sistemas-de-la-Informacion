@@ -1,4 +1,5 @@
 import express from "express";
+import { auditRouter } from "./audit/routes.js";
 import { authRouter } from "./auth/routes.js";
 import { channelsRouter } from "./channels/routes.js";
 import { AppError } from "./errors/app-error.js";
@@ -10,6 +11,7 @@ import { notificationsRouter } from "./notifications/routes.js";
 import { paymentScheduleRouter } from "./payment-schedule/routes.js";
 import { publicRouter } from "./public/routes.js";
 import { failureReportsRouter } from "./reports/routes.js";
+import { usersRouter } from "./users/routes.js";
 
 export const app = express();
 
@@ -25,6 +27,8 @@ app.use("/api/notifications", notificationsRouter);
 app.use("/api/reports", failureReportsRouter);
 app.use("/api/indicators", indicatorsRouter);
 app.use("/api/exports", exportsRouter);
+app.use("/api/users", usersRouter);
+app.use("/api/audit", auditRouter);
 app.use("/api/public", publicRouter);
 
 app.get("/api/health", (_request, response) => {

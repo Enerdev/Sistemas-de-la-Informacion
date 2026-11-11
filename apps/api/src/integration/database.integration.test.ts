@@ -26,6 +26,7 @@ const reportChannelCode = `REPORT_${suffix}`;
 const otherReportChannelCode = `REPORT2_${suffix}`;
 const indicatorChannelCode = `KPI_${suffix}`;
 const scheduleGroup = `PRUEBA_${suffix}`;
+const managedEmail = `simona-m6-${suffix.toLowerCase()}@example.invalid`;
 const deliveredRecipientEmail = `m3-ok-${suffix.toLowerCase()}@simona.test`;
 const failingRecipientEmail = `m3-${suffix.toLowerCase()}@fallo.simona.test`;
 const testPassword = "Database-Test-Password-2026!";
@@ -135,6 +136,7 @@ suite("persistencia e integración PostgreSQL", () => {
     await prisma.notificationRecipient.deleteMany({
       where: { email: { in: [deliveredRecipientEmail, failingRecipientEmail] } },
     });
+    await prisma.user.deleteMany({ where: { email: managedEmail } });
     const userIds = [adminId, operatorId, viewerId].filter((id): id is string => Boolean(id));
     await prisma.user.deleteMany({ where: { id: { in: userIds } } });
     await prisma.$disconnect();
@@ -831,6 +833,103 @@ suite("persistencia e integración PostgreSQL", () => {
     expect(pdf.status).toBe(200);
     expect(pdf.headers["content-type"]).toBe("application/pdf");
     expect((pdf.body as Buffer).subarray(0, 5).toString()).toBe("%PDF-");
+  });
+
+  it("manages users, enforces temporary passwords and keeps an immutable audit log (M6)", async () => {
+    expect((await request(app).post("/api/users").set("Cookie", operatorCookie).send({ email: managedEmail, role: "VIEWER" })).status)
+      .toBe(403);
+    expect((await request(app).get("/api/audit").set("Cookie", viewerCookie)).status).toBe(403);
+
+    const created = await request(app)
+      .post("/api/users")
+      .set("Cookie", adminCookie)
+      .send({ email: managedEmail.toUpperCase(), role: "OPERATOR" });
+    expect(created.status).toBe(201);
+    expect(created.body.data.user).toMatchObject({ email: managedEmail, role: "OPERATOR", mustChangePassword: true, active: true });
+    const temporaryPassword = created.body.data.temporaryPassword as string;
+    const managedId = created.body.data.user.id as string;
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: managedId } })).passwordHash).not.toContain(temporaryPassword);
+
+    const firstLogin = await request(app).post("/api/auth/login").send({ email: managedEmail, password: temporaryPassword });
+    expect(firstLogin.status).toBe(200);
+    expect(firstLogin.body.data.user.mustChangePassword).toBe(true);
+    let managedCookie = sessionCookie(firstLogin.headers["set-cookie"]);
+    const blocked = await request(app).get("/api/channels").set("Cookie", managedCookie);
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error.details).toEqual({ code: "PASSWORD_CHANGE_REQUIRED" });
+    expect((await request(app).get("/api/auth/me").set("Cookie", managedCookie)).body.data.user.mustChangePassword).toBe(true);
+
+    const wrongCurrent = await request(app)
+      .post("/api/auth/change-password")
+      .set("Cookie", managedCookie)
+      .send({ currentPassword: "Incorrecta-123456", newPassword: "Nueva-Clave-M6-2026" });
+    expect(wrongCurrent.status).toBe(400);
+    const changed = await request(app)
+      .post("/api/auth/change-password")
+      .set("Cookie", managedCookie)
+      .send({ currentPassword: temporaryPassword, newPassword: "Nueva-Clave-M6-2026" });
+    expect(changed.status).toBe(204);
+    expect((await request(app).get("/api/channels").set("Cookie", managedCookie)).status).toBe(200);
+    expect((await request(app).post("/api/auth/login").send({ email: managedEmail, password: temporaryPassword })).status).toBe(401);
+
+    const demoted = await request(app).patch(`/api/users/${managedId}`).set("Cookie", adminCookie).send({ role: "VIEWER" });
+    expect(demoted.status).toBe(200);
+    expect((await request(app)
+      .post("/api/channels")
+      .set("Cookie", managedCookie)
+      .send({ code: `M6_${suffix}`, name: "No permitido", type: "APP", simulatedTarget: "sim://app-bn" })).status).toBe(403);
+
+    expect((await request(app).patch(`/api/users/${adminId}`).set("Cookie", adminCookie).send({ active: false })).status).toBe(409);
+    expect((await request(app).patch(`/api/users/${adminId}`).set("Cookie", adminCookie).send({ role: "VIEWER" })).status).toBe(409);
+
+    const deactivated = await request(app).patch(`/api/users/${managedId}`).set("Cookie", adminCookie).send({ active: false });
+    expect(deactivated.body.data.user.active).toBe(false);
+    expect((await request(app).get("/api/auth/me").set("Cookie", managedCookie)).status).toBe(401);
+    expect((await request(app).post("/api/auth/login").send({ email: managedEmail, password: "Nueva-Clave-M6-2026" })).status).toBe(403);
+
+    await request(app).patch(`/api/users/${managedId}`).set("Cookie", adminCookie).send({ active: true });
+    const reset = await request(app).post(`/api/users/${managedId}/reset-password`).set("Cookie", adminCookie);
+    expect(reset.status).toBe(200);
+    expect((await request(app).post("/api/auth/login").send({ email: managedEmail, password: "Nueva-Clave-M6-2026" })).status).toBe(401);
+    const afterReset = await request(app).post("/api/auth/login").send({ email: managedEmail, password: reset.body.data.temporaryPassword });
+    expect(afterReset.body.data.user.mustChangePassword).toBe(true);
+    managedCookie = sessionCookie(afterReset.headers["set-cookie"]);
+    expect((await request(app).get("/api/incidents").set("Cookie", managedCookie)).status).toBe(403);
+
+    const trail = await request(app)
+      .get("/api/audit")
+      .query({ actor: managedEmail, limit: 100 })
+      .set("Cookie", adminCookie);
+    expect(trail.status).toBe(200);
+    expect(trail.body.data.entries.map((entry: { action: string }) => entry.action)).toEqual(expect.arrayContaining([
+      "auth.login",
+      "auth.login_failed",
+      "auth.login_blocked",
+      "auth.password_change",
+    ]));
+    const adminActions = await prisma.auditLog.findMany({
+      where: { entityId: managedId, actorEmail: adminEmail },
+      orderBy: { createdAt: "asc" },
+      select: { action: true, summary: true, ip: true },
+    });
+    expect(adminActions.map(({ action }) => action)).toEqual([
+      "user.create",
+      "user.update",
+      "user.update",
+      "user.update",
+      "user.password_reset",
+    ]);
+    expect(adminActions[1]!.summary).toContain("rol OPERATOR → VIEWER");
+    expect(adminActions[2]!.summary).toContain("desactivada");
+    expect(adminActions[0]!.ip).toBeTruthy();
+    expect(JSON.stringify(await prisma.auditLog.findMany({ where: { entityId: managedId } }))).not.toContain(temporaryPassword);
+
+    const channelAudit = await prisma.auditLog.findFirst({ where: { action: "channel.create", summary: { contains: channelCode } } });
+    expect(channelAudit).toMatchObject({ actorEmail: adminEmail, actorRole: "ADMIN" });
+
+    await expect(prisma.auditLog.updateMany({ where: { entityId: managedId }, data: { summary: "alterado" } }))
+      .rejects.toThrow(/solo inserción/);
+    await expect(prisma.auditLog.deleteMany({ where: { entityId: managedId } })).rejects.toThrow(/solo inserción/);
   });
 
   it("rejects invalid simulated targets and reports missing channels", async () => {

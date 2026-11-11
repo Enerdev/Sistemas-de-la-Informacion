@@ -1,6 +1,7 @@
 import { IncidentSeverity, IncidentStatus } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
+import { recordAudit } from "../audit/audit.js";
 import { asyncHandler } from "../http/async-handler.js";
 import { getAuthenticatedUser, requireAuth } from "../auth/middleware.js";
 import { renderCsv } from "./csv.js";
@@ -65,6 +66,13 @@ router.get(
     }
 
     const body = format === "csv" ? renderCsv(report) : await renderPdf(report, context.generatedAt);
+    await recordAudit(request, {
+      action: "report.export",
+      entityType: "report",
+      entityId: `${kind}.${format}`,
+      summary: `Descargó ${report.title} (${format.toUpperCase()}, ${report.rows.length} filas)`,
+      details: { query: request.query as Record<string, string> },
+    });
     response
       .status(200)
       .type(format === "csv" ? "text/csv; charset=utf-8" : "application/pdf")

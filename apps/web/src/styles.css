@@ -358,6 +358,20 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .report-downloads li { display: flex; align-items: center; gap: 8px; color: #4e5f58; font-size: 11px; }
 .report-downloads li span { flex: 1 1 auto; }
 
+.admin-block { margin-top: 0; margin-bottom: 18px; }
+.role-legend { display: grid; gap: 4px; margin: 0 0 14px; padding: 0; list-style: none; color: #5d6d66; font-size: 10px; }
+.role-legend strong { display: inline-block; min-width: 105px; color: #2c433b; }
+.admin-block .recipient-form { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; margin-bottom: 14px; }
+.admin-block .recipient-form select, .recipient-flags select { min-height: 32px; padding: 5px 8px; border: 1px solid #dce5df; border-radius: 3px; background: #fff; font-size: 11px; }
+.temporary-credential { display: grid; gap: 6px; margin-bottom: 14px; padding: 12px 14px; border: 1px solid #f0dcae; border-radius: 4px; background: #fffaf0; color: #5b4a22; font-size: 11px; }
+.temporary-credential p { margin: 0; }
+.temporary-credential code { width: fit-content; padding: 6px 10px; border-radius: 3px; background: #fff; color: #1f362f; font-size: 14px; font-weight: 700; letter-spacing: .5px; user-select: all; }
+.temporary-credential .toggle-button { width: fit-content; }
+.audit-table { min-width: 820px; }
+.audit-table td { vertical-align: top; }
+.audit-table code { font-size: 10px; color: #3c5a50; }
+.audit-more { margin-top: 10px; padding: 7px 12px; font-size: 11px; }
+
 @media (max-width: 1240px) {
   .topbar { flex-wrap: wrap; row-gap: 4px; padding: 12px 0; }
   .topbar nav { order: 3; width: 100%; flex-wrap: wrap; gap: 6px 22px; }

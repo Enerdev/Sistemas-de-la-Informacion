@@ -1,6 +1,7 @@
 import { FailureReportStatus, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
+import { recordAudit } from "../audit/audit.js";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../errors/app-error.js";
 import { asyncHandler } from "../http/async-handler.js";
@@ -91,6 +92,12 @@ router.patch(
         incident: { select: { id: true, status: true, summary: true, detectedAt: true } },
         reviewedBy: { select: { email: true } },
       },
+    });
+    await recordAudit(request, {
+      action: "failure_report.review",
+      entityType: "failure_report",
+      entityId: id,
+      summary: `Marcó el reporte ${updated.referenceCode} como ${updated.status}${updated.incident ? ` (incidencia ${updated.incident.id.slice(0, 8)})` : ""}`,
     });
     response.status(200).json({ data: { report: updated } });
   }),

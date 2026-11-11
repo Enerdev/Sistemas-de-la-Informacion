@@ -2,7 +2,7 @@
 
 Monorepo inicial de SIMONA-BN, un proyecto universitario de monitoreo de disponibilidad con canales y servicios **simulados**. No se conecta a sistemas internos del Banco de la Nación, no hace pagos y no procesa transacciones reales.
 
-La etapa actual incluye autenticación con sesiones persistidas, roles, catálogo, M1 (verificaciones periódicas/manuales persistidas), M2 (apertura automática y gestión auditable de incidencias) M3 (alertas por correo de caída y restablecimiento con registro de envíos y reintentos) M4 (portal público de estado con reporte ciudadano de fallas) M5 (panel de indicadores con importación CSV del cronograma de pagos) y reportes descargables en CSV y PDF. La gestión de usuarios y roles, la bitácora general de auditoría y el respaldo aún no están implementados.
+La etapa actual incluye autenticación con sesiones persistidas, roles, catálogo, M1 (verificaciones periódicas/manuales persistidas), M2 (apertura automática y gestión auditable de incidencias) M3 (alertas por correo de caída y restablecimiento con registro de envíos y reintentos) M4 (portal público de estado con reporte ciudadano de fallas) M5 (panel de indicadores con importación CSV del cronograma de pagos) reportes descargables en CSV y PDF, y M6 (gestión de usuarios y roles, bitácora de auditoría inmutable y respaldo verificable de la base).
 
 ## Requisitos
 
@@ -243,6 +243,52 @@ En **Incidencias**, los botones CSV/PDF exportan con los filtros aplicados (cana
 Los CSV son UTF-8 con BOM, separador coma y punto decimal, para que Excel muestre bien las tildes; el texto que empieza con `=`, `+`, `-` o `@` se antepone con `'` para evitar la inyección de fórmulas. Los PDF (A4 horizontal, generados con PDFKit) incluyen periodo, usuario y hora de generación, resumen, tabla paginada con cabecera repetida, notas de cálculo y la advertencia de datos simulados.
 
 Endpoints: `GET /api/exports/{availability|incidents|exceptions}.{csv|pdf}?from=<ISO>&to=<ISO>`; `availability` acepta `target`, `channelId` y `granularity=channel|day`; `exceptions` acepta `target`; `incidents` acepta `channelId`, `status` y `severity`. Periodo máximo: un año.
+
+## Seguridad, usuarios y auditoría (M6)
+
+### Roles
+
+| Rol | Nombre en la interfaz | Puede |
+|---|---|---|
+| `ADMIN` | Administrador | Todo: usuarios y roles, bitácora, cierre de incidencias, destinatarios, eliminar fechas del cronograma |
+| `OPERATOR` | Personal de TI | Canales y monitoreo, incidencias (sin cerrar), alertas, reportes ciudadanos, importar cronograma |
+| `VIEWER` | Consulta | Solo lectura de canales, incidencias, indicadores y reportes descargables |
+| (sin cuenta) | Público | Portal `/estado`: consultar estado y reportar fallas |
+
+En la pestaña **Administración** (solo ADMIN) se crean cuentas con una **contraseña temporal** que se muestra una sola vez; al iniciar sesión, la API bloquea todo excepto `/api/auth/*` hasta que la persona la cambie. ADMIN también cambia roles, desactiva cuentas (cierra sus sesiones al instante) y restablece contraseñas. Nadie puede quitarse su propio rol ni desactivarse, y siempre debe quedar al menos un ADMIN activo. Cualquier usuario cambia su contraseña desde el botón **Contraseña**.
+
+### Bitácora de auditoría
+
+Se registran, con usuario, rol, IP y fecha: inicios de sesión (correctos, fallidos y de cuentas desactivadas), cierres de sesión, registros, cambios de contraseña, gestión de usuarios, alta y cambios de canales, umbrales y estados, verificaciones manuales, transiciones de incidencias, revisión de reportes ciudadanos, destinatarios y reintentos de alertas, importaciones y borrados del cronograma, y descargas de reportes. La tabla `audit_logs` es **de solo inserción**: un disparador de PostgreSQL rechaza cualquier `UPDATE` o `DELETE`. Las contraseñas temporales nunca se guardan en la bitácora.
+
+### Otras medidas
+
+- Contraseñas con `scrypt` y sal aleatoria (mínimo 12 caracteres). El inicio de sesión gasta el mismo tiempo exista o no el correo, para no revelar qué cuentas existen.
+- Sesiones con token opaco aleatorio guardado como SHA-256, en cookie `HttpOnly`, `SameSite=Strict` y `Secure` en producción.
+- Límite de 10 intentos de inicio de sesión por IP cada 15 minutos (`LOGIN_RATE_LIMIT_MAX`) y de 5 reportes públicos por IP.
+- Validación estricta de todas las entradas (campos desconocidos, correos, fechas imposibles, duplicados) y endpoints protegidos por rol.
+
+El plan original mencionaba bcrypt y JWT. Se usan `scrypt` (función de derivación igual de recomendada y nativa de Node.js) y sesiones en base de datos, porque permiten **revocar** una sesión al instante (cerrar sesión, desactivar una cuenta o cambiar la contraseña), algo que un JWT no permite sin infraestructura adicional.
+
+### Respaldo y restauración
+
+```bash
+npm run db:backup
+npm run db:backup:verify
+npm run db:restore -- backups/archivo.dump postgresql://usuario@host/base_destino
+```
+
+- `db:backup` crea en `backups/` (ignorada por Git, permisos 700) un volcado `pg_dump` en formato custom, su suma SHA-256 y un manifiesto con las filas de cada tabla. Conserva los últimos 14 (`BACKUP_RETENTION`).
+- `db:backup:verify` comprueba la suma, restaura el respaldo más reciente en una base **temporal**, compara las filas de cada tabla con el manifiesto, muestra la última migración y borra la base temporal. Un archivo alterado se rechaza en el primer paso.
+- `db:restore` comprueba la suma y reemplaza el contenido de la base indicada; pide escribir el nombre de la base para confirmar.
+
+Para un respaldo diario a las 02:00 en el servidor (cron del usuario que ejecuta la API):
+
+```bash
+0 2 * * * cd /ruta/a/Sistemas-de-la-Informacion && npm run db:backup >> backups/backup.log 2>&1
+```
+
+Los respaldos contienen hashes de contraseñas y datos de contacto: guárdalos fuera del servidor y con acceso restringido.
 
 ## Pruebas, tipos y compilaciones
 

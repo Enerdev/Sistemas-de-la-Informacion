@@ -9,11 +9,14 @@ import {
 import type { Notification } from "./NotificationsPanel";
 import { ReportsPanel } from "./ReportsPanel";
 import { IndicatorsPanel } from "./IndicatorsPanel";
+import { AdminPanel, roleLabels } from "./AdminPanel";
+import { ChangePasswordScreen } from "./ChangePasswordScreen";
 
 type User = {
   id: string;
   email: string;
   role: "ADMIN" | "OPERATOR" | "VIEWER";
+  mustChangePassword?: boolean;
 };
 
 type MonitoringConfig = {
@@ -140,9 +143,10 @@ function App() {
   const [history, setHistory] = useState<Record<string, Check[]>>({});
   const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({});
   const [checkingChannel, setCheckingChannel] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"channels" | "incidents" | "notifications" | "reports" | "indicators">("channels");
+  const [activeTab, setActiveTab] = useState<"channels" | "incidents" | "notifications" | "reports" | "indicators" | "admin">("channels");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const loadChannels = useCallback(async () => {
     const result = await apiRequest<{ channels: Channel[] }>("/api/channels");
@@ -173,7 +177,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (page.kind !== "app") return;
+    if (page.kind !== "app" || page.user.mustChangePassword) return;
     let active = true;
     apiRequest<{ channels: Channel[] }>("/api/channels")
       .then(({ channels: loadedChannels }) => {
@@ -188,7 +192,7 @@ function App() {
   }, [page]);
 
   useEffect(() => {
-    if (page.kind !== "app") return;
+    if (page.kind !== "app" || page.user.mustChangePassword) return;
     const timer = window.setInterval(() => {
       void loadChannels().catch((error: unknown) => {
         setNotice(error instanceof Error ? error.message : "No se pudo actualizar el panel");
@@ -196,7 +200,7 @@ function App() {
     }, intervalMilliseconds);
 
     return () => window.clearInterval(timer);
-  }, [page.kind, loadChannels]);
+  }, [page, loadChannels]);
 
   async function handleAuth(email: string, password: string, mode: FormMode) {
     setBusy(true);
@@ -374,6 +378,22 @@ function App() {
     );
   }
 
+  if (page.user.mustChangePassword || changingPassword) {
+    const user = page.user;
+    return (
+      <ChangePasswordScreen
+        email={user.email}
+        forced={Boolean(user.mustChangePassword)}
+        onDone={() => {
+          setChangingPassword(false);
+          setPage({ kind: "app", user: { ...user, mustChangePassword: false } });
+          setNotice("Contraseña actualizada.");
+        }}
+        onCancel={() => (user.mustChangePassword ? void handleLogout() : setChangingPassword(false))}
+      />
+    );
+  }
+
   const canManage = page.user.role === "ADMIN" || page.user.role === "OPERATOR";
   return (
     <div className="dashboard-shell">
@@ -417,11 +437,20 @@ function App() {
               Reportes ciudadanos
             </button>
           )}
+          {page.user.role === "ADMIN" && (
+            <button
+              className={`nav-link nav-button ${activeTab === "admin" ? "active" : ""}`}
+              onClick={() => setActiveTab("admin")}
+            >
+              Administración
+            </button>
+          )}
           <a className="nav-link" href="/estado">Portal público</a>
         </nav>
         <div className="account-menu">
-          <span className="role-tag">{page.user.role}</span>
+          <span className="role-tag" title={page.user.role}>{roleLabels[page.user.role]}</span>
           <span className="account-email">{page.user.email}</span>
+          <button className="text-button" disabled={busy} onClick={() => setChangingPassword(true)}>Contraseña</button>
           <button className="text-button" disabled={busy} onClick={handleLogout}>Salir</button>
         </div>
       </header>
@@ -581,8 +610,10 @@ function App() {
           <NotificationsPanel isAdmin={page.user.role === "ADMIN"} setNotice={setNotice} />
         ) : activeTab === "reports" ? (
           <ReportsPanel setNotice={setNotice} />
-        ) : (
+        ) : activeTab === "indicators" ? (
           <IndicatorsPanel canImport={canManage} isAdmin={page.user.role === "ADMIN"} setNotice={setNotice} />
+        ) : (
+          <AdminPanel currentUserId={page.user.id} setNotice={setNotice} />
         )}
 
         <section className="about-section" id="acerca">
@@ -592,7 +623,7 @@ function App() {
             <h2>Una base para observar y aprender.</h2>
             <p>Proyecto universitario. No se conecta con sistemas internos del Banco de la Nación y no procesa transacciones reales.</p>
           </div>
-          <span className="version-label">REPORTES · 0.7.0</span>
+          <span className="version-label">SEGURIDAD M6 · 0.8.0</span>
         </section>
       </main>
 

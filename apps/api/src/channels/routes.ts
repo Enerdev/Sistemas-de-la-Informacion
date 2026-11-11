@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { ChannelStatus } from "@prisma/client";
 import { z } from "zod";
+import { recordAudit } from "../audit/audit.js";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../errors/app-error.js";
 import { asyncHandler } from "../http/async-handler.js";
@@ -74,6 +75,12 @@ router.post(
   asyncHandler(async (request, response) => {
     const id = idSchema.parse(request.params.id);
     const check = await runManualMonitoringCheck(id);
+    await recordAudit(request, {
+      action: "channel.manual_check",
+      entityType: "channel",
+      entityId: id,
+      summary: `Verificación manual: ${check.result} → ${check.observedStatus}`,
+    });
     response.status(201).json({ data: { check } });
   }),
 );
@@ -107,6 +114,14 @@ router.patch(
             actorId: request.auth?.userId,
           },
         });
+      }
+      if (existing.currentStatus !== status) {
+        await recordAudit(request, {
+          action: "channel.status_change",
+          entityType: "channel",
+          entityId: id,
+          summary: `Cambió el estado de ${updated.name}: ${existing.currentStatus} → ${status}`,
+        }, transaction);
       }
       return updated;
     });
@@ -150,6 +165,12 @@ router.post(
       },
       include: { monitoringConfig: true },
     });
+    await recordAudit(request, {
+      action: "channel.create",
+      entityType: "channel",
+      entityId: channel.id,
+      summary: `Registró el canal ${channel.name} (${channel.code}) con destino ${channel.simulatedTarget}`,
+    });
     response.status(201).json({ data: { channel } });
   }),
 );
@@ -160,10 +181,21 @@ router.patch(
   asyncHandler(async (request, response) => {
     const id = idSchema.parse(request.params.id);
     const input = updateChannelSchema.parse(request.body);
+    const before = await prisma.channel.findUnique({
+      where: { id },
+      select: { code: true, name: true, description: true, type: true, simulatedTarget: true },
+    });
     const channel = await prisma.channel.update({
       where: { id },
       data: input,
       include: { monitoringConfig: true },
+    });
+    await recordAudit(request, {
+      action: "channel.update",
+      entityType: "channel",
+      entityId: id,
+      summary: `Modificó el canal ${channel.name}: ${Object.keys(input).join(", ")}`,
+      details: { before, after: input },
     });
     response.status(200).json({ data: { channel } });
   }),
@@ -179,6 +211,12 @@ router.patch(
       where: { id },
       data: { monitoringEnabled: input.monitoringEnabled },
       include: { monitoringConfig: true },
+    });
+    await recordAudit(request, {
+      action: "channel.monitoring_toggle",
+      entityType: "channel",
+      entityId: id,
+      summary: `${input.monitoringEnabled ? "Habilitó" : "Deshabilitó"} el monitoreo de ${channel.name}`,
     });
     response.status(200).json({ data: { channel } });
   }),
@@ -202,6 +240,13 @@ router.patch(
       where: { channelId: id },
       create: { channelId: id, ...input },
       update: input,
+    });
+    await recordAudit(request, {
+      action: "channel.config_update",
+      entityType: "channel",
+      entityId: id,
+      summary: `Modificó umbrales de monitoreo: ${Object.entries(input).map(([key, value]) => `${key}=${value}`).join(", ")}`,
+      details: input,
     });
     response.status(200).json({ data: { monitoringConfig } });
   }),

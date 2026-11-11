@@ -1,6 +1,7 @@
 import { NotificationKind, NotificationStatus, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { z } from "zod";
+import { recordAudit } from "../audit/audit.js";
 import { prisma } from "../db/prisma.js";
 import { AppError } from "../errors/app-error.js";
 import { asyncHandler } from "../http/async-handler.js";
@@ -58,6 +59,12 @@ router.post(
   asyncHandler(async (request, response) => {
     const input = createRecipientSchema.parse(request.body);
     const recipient = await prisma.notificationRecipient.create({ data: input });
+    await recordAudit(request, {
+      action: "recipient.create",
+      entityType: "notification_recipient",
+      entityId: recipient.id,
+      summary: `Agregó el destinatario de alertas ${recipient.email}`,
+    });
     response.status(201).json({ data: { recipient } });
   }),
 );
@@ -69,6 +76,12 @@ router.patch(
     const id = idSchema.parse(request.params.id);
     const input = updateRecipientSchema.parse(request.body);
     const recipient = await prisma.notificationRecipient.update({ where: { id }, data: input });
+    await recordAudit(request, {
+      action: "recipient.update",
+      entityType: "notification_recipient",
+      entityId: id,
+      summary: `Modificó el destinatario ${recipient.email}: ${Object.entries(input).map(([key, value]) => `${key}=${value}`).join(", ")}`,
+    });
     response.status(200).json({ data: { recipient } });
   }),
 );
@@ -126,6 +139,12 @@ router.post(
     if (requeued.count !== 1) {
       throw new AppError("Solo se pueden reintentar notificaciones fallidas", 409);
     }
+    await recordAudit(request, {
+      action: "notification.retry",
+      entityType: "notification",
+      entityId: id,
+      summary: `Reprogramó el envío fallido de la notificación ${id.slice(0, 8)}`,
+    });
     triggerNotificationDispatch();
     const updated = await prisma.notification.findUniqueOrThrow({ where: { id } });
     response.status(202).json({ data: { notification: updated } });

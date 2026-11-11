@@ -79,6 +79,7 @@ El esquema completo y sus enums están en [`apps/api/prisma/schema.prisma`](../a
 | `FailureReport` (`failure_reports`) | Reporte ciudadano: código de seguimiento único, canal, descripción, contacto y fecha opcionales, estado de revisión (`NEW`, `REVIEWED`, `LINKED`, `DISMISSED`), incidencia vinculada, revisor y nota |
 | `PaymentScheduleImport` (`payment_schedule_imports`) | Registro de cada importación CSV: archivo, filas, creadas/actualizadas, usuario y fecha |
 | `PaymentDate` (`payment_dates`) | Fecha de pago (`DATE`), grupo y descripción; única por fecha y grupo; enlazada a su última importación |
+| `AuditLog` (`audit_logs`) | Bitácora de solo inserción: actor (id, correo y rol copiados), acción, entidad, resumen, detalles JSON, IP y fecha; sin clave foránea a usuarios |
 | `Notification` (`notifications`) | Evento (`CHANNEL_DOWN`/`CHANNEL_RECOVERED`), canal, incidencia, destinatario, mensaje, estado de envío, intentos, error, id del proveedor, vista previa y fechas |
 
 Enums relevantes:
@@ -89,7 +90,7 @@ Enums relevantes:
 - Estado de incidencia: `OPEN`, `ACKNOWLEDGED`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`.
 - Severidad: `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
 
-La migración inicial crea un índice único parcial que impide más de una incidencia activa (`OPEN`, `ACKNOWLEDGED`, `IN_PROGRESS`) por canal. Las migraciones M1 y M2 añaden metadatos de verificación y evidencia/recuperación de incidencias. La migración M3 crea destinatarios y notificaciones, con restricciones `CHECK` que impiden intentos negativos y un estado `SENT` sin fecha de envío. La migración M5 agrega `incidents.startedAt` (inicio real) y `CHECK` que impiden inicio posterior a la detección y estados `RESOLVED`/`CLOSED` sin sus fechas. La migración M4 crea los reportes ciudadanos con `CHECK` que exigen incidencia en `LINKED` y fecha de revisión fuera de `NEW`; la incidencia vinculada usa `ON DELETE RESTRICT`.
+La migración inicial crea un índice único parcial que impide más de una incidencia activa (`OPEN`, `ACKNOWLEDGED`, `IN_PROGRESS`) por canal. Las migraciones M1 y M2 añaden metadatos de verificación y evidencia/recuperación de incidencias. La migración M3 crea destinatarios y notificaciones, con restricciones `CHECK` que impiden intentos negativos y un estado `SENT` sin fecha de envío. La migración M6 agrega `users.active`, `mustChangePassword` y `lastLoginAt`, y crea `audit_logs` con un disparador que rechaza `UPDATE` y `DELETE`. La migración M5 agrega `incidents.startedAt` (inicio real) y `CHECK` que impiden inicio posterior a la detección y estados `RESOLVED`/`CLOSED` sin sus fechas. La migración M4 crea los reportes ciudadanos con `CHECK` que exigen incidencia en `LINKED` y fecha de revisión fuera de `NEW`; la incidencia vinculada usa `ON DELETE RESTRICT`.
 
 ## 4. Instalación y configuración local
 
@@ -194,7 +195,20 @@ Base URL de desarrollo: `http://localhost:3001`; el frontend usa `/api`. Salvo r
 | `POST` | `/api/auth/register` | Público | Registrar cuenta `VIEWER` |
 | `POST` | `/api/auth/login` | Público | Crear sesión y devolver cookie |
 | `POST` | `/api/auth/logout` | Público | Revocar token si existe y limpiar cookie |
-| `GET` | `/api/auth/me` | Sesión | Consultar usuario autenticado |
+| `GET` | `/api/auth/me` | Sesión | Consultar usuario autenticado (incluye `mustChangePassword`) |
+| `POST` | `/api/auth/change-password` | Sesión | `{ currentPassword, newPassword }`; cierra las demás sesiones |
+
+### Usuarios y auditoría (M6)
+
+| Método | Ruta | Acceso | Función |
+|---|---|---|---|
+| `GET` | `/api/users` | ADMIN | Listar cuentas, rol, estado y último acceso |
+| `POST` | `/api/users` | ADMIN | Crear cuenta `{ email, role }`; devuelve una contraseña temporal una sola vez |
+| `PATCH` | `/api/users/:id` | ADMIN | Cambiar `role` o `active` (con bloqueo consultivo para no quedar sin ADMIN) |
+| `POST` | `/api/users/:id/reset-password` | ADMIN | Nueva contraseña temporal y cierre de sesiones |
+| `GET` | `/api/audit?action=&entityType=&actor=&from=&to=&limit=&cursor=` | ADMIN | Bitácora; `action` filtra por prefijo (por ejemplo `user.`) |
+
+Con `mustChangePassword`, `requireAuth` responde `403` con `details.code = "PASSWORD_CHANGE_REQUIRED"` a toda ruta fuera de `/api/auth/`.
 
 ### Canales
 
@@ -302,7 +316,7 @@ Los archivos de test cubren validación, autenticación, clasificación, verific
 
 ### Resultado actualizado (10 de noviembre de 2026)
 
-Con PostgreSQL local y `TEST_DATABASE_URL` configurada se ejecutan **86 pruebas sin omisiones**. Incluyen la descarga de reportes CSV/PDF con valores exactos, el escapado contra inyección de fórmulas y la paginación del PDF, el cálculo M5 sobre un periodo controlado (disponibilidad global y en fechas de pago, tiempos medios, entregas, excepción) y la importación CSV con rechazo atómico, el portal M4 (estado público sin datos internos, reporte ciudadano, seguimiento, revisión y vinculación con validación de canal) y el recorrido M1→M2→M3: caída simulada, apertura de incidencia, notificación enviada, rechazo simulado con reintentos hasta `FAILED`, reintento manual, recuperación y notificación de restablecimiento.
+Con PostgreSQL local y `TEST_DATABASE_URL` configurada se ejecutan **90 pruebas sin omisiones**. Incluyen M6 (contraseña temporal obligatoria, cambio de rol con efecto inmediato, desactivación, protección del último ADMIN, bitácora con actor e IP e inmutabilidad comprobada contra la base), la descarga de reportes CSV/PDF con valores exactos, el escapado contra inyección de fórmulas y la paginación del PDF, el cálculo M5 sobre un periodo controlado (disponibilidad global y en fechas de pago, tiempos medios, entregas, excepción) y la importación CSV con rechazo atómico, el portal M4 (estado público sin datos internos, reporte ciudadano, seguimiento, revisión y vinculación con validación de canal) y el recorrido M1→M2→M3: caída simulada, apertura de incidencia, notificación enviada, rechazo simulado con reintentos hasta `FAILED`, reintento manual, recuperación y notificación de restablecimiento.
 
 ### Resultado de QA anterior
 
@@ -326,11 +340,14 @@ Para una nueva entrega, repita los comandos en el entorno destino y adjunte sali
 - Nunca versionar `apps/api/.env`, contraseñas, tokens ni archivos de cookie de demostración.
 - Las contraseñas usan `scrypt`; el sistema persiste el hash, no el texto claro. Los tokens de sesión son aleatorios y se persisten como SHA-256.
 - La cookie es `HttpOnly`, `SameSite=Strict`, con vencimiento; en `production` se configura `Secure`. HTTPS debe estar resuelto por el despliegue productivo si existiera.
-- El alta pública asigna `VIEWER`; no hay UI/API de gestión de roles. El seed de `ADMIN` está limitado a entorno no productivo.
+- El alta pública asigna `VIEWER`. ADMIN gestiona cuentas y roles en la pestaña Administración (contraseña temporal obligatoria de cambiar, desactivación con cierre de sesiones, siempre al menos un ADMIN activo). El seed de `ADMIN` está limitado a entorno no productivo.
+- Toda acción relevante queda en `audit_logs`, protegida contra modificación por un disparador. El inicio de sesión tiene límite por IP y tiempo constante ante correos inexistentes.
+- Se usa `scrypt` y sesiones revocables en lugar de bcrypt y JWT del plan original: ambas son prácticas recomendadas y la sesión en base de datos permite revocar el acceso al instante.
 - Las rutas de escritura verifican roles. Los cuerpos JSON están limitados a 16 KiB.
 - Mantener el modo `simulated`. No configurar dominios del BN ni endpoints no autorizados en allowlist.
 - La API/scheduler está diseñada para una instancia en la demostración. Varias instancias no comparten lock de scheduler.
-- No hay evidencia de despliegue, backup automatizado, política de retención, auditoría de seguridad externa, pruebas de carga o SLA.
+- Respaldo: `npm run db:backup` (pg_dump + SHA-256 + manifiesto de filas, retención 14), `npm run db:backup:verify` (restauración en base temporal y comparación) y `npm run db:restore`. El respaldo diario se programa con cron (ver README). Verificado el 11/11/2026 sobre `simona_bn_dev`: 15 tablas y 48 filas coincidieron; un archivo alterado fue rechazado por la suma SHA-256.
+- No hay evidencia de despliegue, auditoría de seguridad externa, pruebas de carga o SLA.
 
 ## 11. Referencias técnicas
 
@@ -343,5 +360,6 @@ Para una nueva entrega, repita los comandos en el entorno destino y adjunte sali
 - [`apps/api/src/notifications/`](../apps/api/src/notifications/), cola, despachador y transportes M3.
 - [`apps/api/src/indicators/`](../apps/api/src/indicators/) y [`apps/api/src/payment-schedule/`](../apps/api/src/payment-schedule/), indicadores e importación del cronograma M5.
 - [`apps/api/src/exports/`](../apps/api/src/exports/), reportes CSV y PDF.
+- [`apps/api/src/users/`](../apps/api/src/users/), [`apps/api/src/audit/`](../apps/api/src/audit/) y [`scripts/db/`](../scripts/db/), usuarios, bitácora y respaldo M6.
 - [`apps/api/src/public/routes.ts`](../apps/api/src/public/routes.ts) y [`apps/api/src/reports/routes.ts`](../apps/api/src/reports/routes.ts), portal público y revisión de reportes M4.
 - [`QA-REPORT.md`](../QA-REPORT.md), resultados reportados y límites de la ejecución QA del 14/10/2026.
