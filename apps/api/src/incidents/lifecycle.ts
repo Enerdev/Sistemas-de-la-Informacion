@@ -68,6 +68,7 @@ export async function recordMonitoringIncident(
     detail: string | null;
     failureThreshold: number;
     previousResultsNewestFirst: CheckResult[];
+    previousCheckedAtNewestFirst?: Date[];
   },
 ): Promise<MonitoringIncidentOutcome> {
   if (
@@ -125,6 +126,10 @@ export async function recordMonitoringIncident(
     return null;
   }
 
+  // Inicio real: el primer fallo de la racha que llevó a la detección.
+  const startedAt = consecutiveFailures > 1
+    ? input.previousCheckedAtNewestFirst?.[consecutiveFailures - 2] ?? input.checkedAt
+    : input.checkedAt;
   const reason = `Canal CAÍDO tras ${consecutiveFailures} fallos consecutivos; política: ${input.failureThreshold}.`;
   const evidence = JSON.stringify({
     detectionCheckId: input.checkId,
@@ -132,6 +137,7 @@ export async function recordMonitoringIncident(
     detail: input.detail,
     consecutiveFailures,
     failureThreshold: input.failureThreshold,
+    startedAt: startedAt.toISOString(),
     detectedAt: input.checkedAt.toISOString(),
   }).slice(0, 2000);
   const incident = await transaction.incident.create({
@@ -143,6 +149,7 @@ export async function recordMonitoringIncident(
       summary: "Canal no disponible",
       reason,
       evidence,
+      startedAt,
       detectedAt: input.checkedAt,
       openedAt: input.checkedAt,
       events: {

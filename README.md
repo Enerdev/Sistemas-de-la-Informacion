@@ -2,7 +2,7 @@
 
 Monorepo inicial de SIMONA-BN, un proyecto universitario de monitoreo de disponibilidad con canales y servicios **simulados**. No se conecta a sistemas internos del Banco de la Nación, no hace pagos y no procesa transacciones reales.
 
-La etapa actual incluye autenticación con sesiones persistidas, roles, catálogo, M1 (verificaciones periódicas/manuales persistidas), M2 (apertura automática y gestión auditable de incidencias) M3 (alertas por correo de caída y restablecimiento con registro de envíos y reintentos) y M4 (portal público de estado con reporte ciudadano de fallas). Los indicadores, el cronograma de pagos y los reportes PDF/CSV aún no están implementados.
+La etapa actual incluye autenticación con sesiones persistidas, roles, catálogo, M1 (verificaciones periódicas/manuales persistidas), M2 (apertura automática y gestión auditable de incidencias) M3 (alertas por correo de caída y restablecimiento con registro de envíos y reintentos) M4 (portal público de estado con reporte ciudadano de fallas) y M5 (panel de indicadores con importación CSV del cronograma de pagos). Los reportes descargables PDF/CSV, la gestión de usuarios y el respaldo aún no están implementados.
 
 ## Requisitos
 
@@ -201,6 +201,31 @@ El personal (ADMIN u OPERATOR) revisa los reportes en la pestaña **Reportes**: 
 Endpoints públicos (sin sesión): `GET /api/public/status`, `GET /api/public/incidents`, `POST /api/public/reports`, `GET /api/public/reports/:codigo`. Internos (ADMIN/OPERATOR): `GET /api/reports?status=&channelId=&limit=&cursor=`, `PATCH /api/reports/:id` con `{ "status": "REVIEWED" | "LINKED" | "DISMISSED", "incidentId"?, "note"? }`.
 
 En un despliegue detrás de Nginx, la ruta `/estado` debe servir `index.html` (`try_files $uri /index.html;`) y Express debe confiar en el proxy (`trust proxy`) para que el límite por IP use la IP real.
+
+## Panel de indicadores M5
+
+La pestaña **Indicadores** (cualquier usuario con sesión) calcula, para un periodo y una meta de disponibilidad:
+
+| Indicador | Fórmula |
+|---|---|
+| Disponibilidad por canal y global | tiempo operativo ÷ (operativo + caído) × 100 |
+| Disponibilidad en fechas de pago | la misma fórmula, solo dentro de los días del cronograma (hora de Lima) |
+| Tiempo medio de detección | Σ(detección − inicio real) ÷ incidencias |
+| Tiempo medio de restablecimiento | Σ(recuperación técnica − inicio real) ÷ incidencias recuperadas |
+| Tiempo medio de resolución | Σ(resolución administrativa − detección) ÷ incidencias resueltas |
+| Tiempo de comunicación | primera alerta de caída enviada − detección |
+| Incidencias en fechas de pago | incidencias cuyo inicio cae en un día de pago |
+| Notificaciones entregadas | enviadas ÷ (enviadas + fallidas) × 100 |
+
+El tiempo se reconstruye con el historial de estados de cada canal. DEGRADADO cuenta como operativo; MANTENIMIENTO y "Sin verificar" se excluyen del total. El **inicio real** de una incidencia es el primer fallo de la racha que llevó a detectarla; las incidencias creadas antes de M5 no lo tienen y usan la detección. El panel incluye el **reporte por excepción**: canales con disponibilidad inferior a la meta en fechas de pago.
+
+### Cronograma de pagos (CSV)
+
+ADMIN u OPERATOR importan un CSV con cabecera `fecha,grupo,descripcion` (fecha `AAAA-MM-DD` o `DD/MM/AAAA`, separador `,` o `;`, `descripcion` opcional). Hay un ejemplo **ficticio** en [`apps/web/public/ejemplos/cronograma-pagos-ejemplo.csv`](apps/web/public/ejemplos/cronograma-pagos-ejemplo.csv), que la app ofrece para descargar. Se validan cabecera, fechas reales, longitud de campos, columnas sobrantes y duplicados; **si una fila tiene errores, no se importa ninguna** y se informa la línea. Volver a importar una fecha del mismo grupo actualiza su descripción. Cada importación queda registrada con archivo, usuario y conteos; solo ADMIN puede eliminar fechas.
+
+Endpoints: `GET /api/indicators?from=<ISO>&to=<ISO>&target=99` (periodo máximo de un año), `GET /api/payment-schedule?from=AAAA-MM-DD&to=AAAA-MM-DD`, `POST /api/payment-schedule/import` con `{ "fileName": "x.csv", "content": "..." }` (hasta 200 KB) y `DELETE /api/payment-schedule/:id`.
+
+La migración M5 también agrega restricciones a las incidencias: el inicio no puede ser posterior a la detección, y una incidencia resuelta o cerrada debe tener fecha de resolución (y de cierre).
 
 ## Pruebas, tipos y compilaciones
 

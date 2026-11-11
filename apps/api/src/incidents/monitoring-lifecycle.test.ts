@@ -54,12 +54,18 @@ describe("incident actions driven by monitoring", () => {
       previousStatus: ChannelStatus.DEGRADED,
       newStatus: ChannelStatus.UNAVAILABLE,
       previousResultsNewestFirst: [CheckResult.FAILURE, CheckResult.TIMEOUT],
+      previousCheckedAtNewestFirst: [
+        new Date("2026-10-14T09:59:00.000Z"),
+        new Date("2026-10-14T09:58:00.000Z"),
+      ],
     });
 
     expect(transaction.incident.create).toHaveBeenCalledOnce();
     expect(transaction.incident.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         status: IncidentStatus.OPEN,
+        startedAt: new Date("2026-10-14T09:58:00.000Z"),
+        detectedAt: baseInput.checkedAt,
         reason: expect.stringContaining("3 fallos consecutivos"),
         evidence: expect.stringContaining('"failureThreshold":3'),
         detectionCheckId: baseInput.checkId,

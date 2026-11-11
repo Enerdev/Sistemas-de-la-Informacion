@@ -319,6 +319,42 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .portal-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .portal-lookup { margin: 4px 0 0; }
 
+.indicator-filters { grid-template-columns: repeat(5, minmax(0, 200px)); }
+.indicator-period { margin: -6px 0 12px; color: #74827c; font-size: 10px; }
+.indicator-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.indicator-tile { display: grid; align-content: start; gap: 6px; padding: 14px; border: 1px solid #e1e9e4; border-radius: 5px; background: #fff; }
+.indicator-tile > span { color: #5d6d66; font-size: 10px; font-weight: 700; }
+.indicator-tile strong { color: #1f362f; font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
+.indicator-tile small { color: #85928c; font-size: 9px; line-height: 1.45; }
+.below-target { display: inline-flex; align-items: center; gap: 4px; width: fit-content; margin-top: 3px; padding: 2px 6px; border-radius: 3px; color: #8f3b44; background: #fdebef; font-size: 9px; font-weight: 800; }
+.indicator-muted { color: #8a968f; font-size: 10px; }
+.indicator-exceptions { margin-bottom: 16px; padding: 14px 16px; border: 1px solid #dce8e2; border-left: 4px solid #219875; border-radius: 5px; background: #f6fbf8; }
+.indicator-exceptions.has-exceptions { border-color: #f0d2d6; border-left-color: #c86f68; background: #fff7f8; }
+.indicator-exceptions h3 { margin: 0 0 6px; color: #29413b; font-size: 13px; }
+.indicator-exceptions p, .indicator-exceptions li { margin: 0; color: #4e5f58; font-size: 11px; line-height: 1.6; }
+.indicator-exceptions ul { margin: 0; padding-left: 0; list-style: none; }
+.indicator-table-wrap { overflow-x: auto; border: 1px solid #e1e9e4; border-radius: 5px; background: #fff; }
+.indicator-table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 11px; }
+.indicator-table caption { padding: 12px 14px 4px; color: #29413b; font-size: 13px; font-weight: 700; text-align: left; }
+.indicator-table th, .indicator-table td { padding: 10px 14px; border-top: 1px solid #edf0ed; color: #3f524b; text-align: left; vertical-align: middle; font-variant-numeric: tabular-nums; }
+.indicator-table thead th { color: #74827c; font-size: 9px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; }
+.indicator-table tbody th { display: grid; gap: 2px; font-weight: 700; }
+.indicator-table tbody th span { color: #8a968f; font-size: 9px; font-weight: 400; }
+.availability-meter { display: flex; align-items: center; gap: 8px; min-width: 150px; }
+.availability-meter-track { position: relative; flex: 1 1 auto; height: 8px; border-radius: 4px; background: #e9efeb; }
+.availability-meter-fill { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--teal); }
+.availability-meter-target { position: absolute; top: -3px; width: 2px; height: 14px; margin-left: -1px; background: #29413b; }
+.availability-meter > span:last-child { min-width: 64px; font-weight: 700; }
+.schedule-section code { padding: 1px 4px; border-radius: 3px; background: #eef3f0; font-size: 10px; }
+.import-errors { display: grid; gap: 4px; margin: 0 0 12px; padding: 10px 12px 10px 28px; border: 1px solid #f0d2d6; border-radius: 4px; background: #fff7f8; color: #7c3a42; font-size: 11px; }
+.schedule-section .recipient-form { grid-template-columns: minmax(0, 1fr) auto; margin-bottom: 12px; }
+.schedule-section .notice, .schedule-section .portal-success { margin: 0 0 10px; }
+
+@media (max-width: 1240px) {
+  .topbar { flex-wrap: wrap; row-gap: 4px; padding: 12px 0; }
+  .topbar nav { order: 3; width: 100%; flex-wrap: wrap; gap: 6px 22px; }
+}
+
 @media (max-width: 900px) {
   .dashboard-shell { padding: 0 5%; }
   .channel-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -352,6 +388,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   .incident-action label { grid-column: auto; }
   .recipient-form { grid-template-columns: 1fr; }
   .portal-forms { grid-template-columns: 1fr; }
+  .indicator-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .indicator-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .portal-summary { margin-right: 0; margin-left: 0; }
   .portal-section { padding-right: 0; padding-left: 0; }
   .portal-channels li, .portal-incidents li { align-items: flex-start; flex-direction: column; }

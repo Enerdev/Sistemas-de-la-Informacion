@@ -164,7 +164,7 @@ export class MonitoringService {
         where: { channelId: channel.id },
         orderBy: { checkedAt: "desc" },
         take: maximumThreshold,
-        select: { result: true },
+        select: { result: true, checkedAt: true },
       });
       const observedStatus = classifyChannelStatus(
         current.currentStatus,
@@ -211,6 +211,7 @@ export class MonitoringService {
         detail: observation.detail,
         failureThreshold: channel.monitoringConfig.failureThreshold,
         previousResultsNewestFirst: previousChecks.map(({ result }) => result),
+        previousCheckedAtNewestFirst: previousChecks.map(({ checkedAt }) => checkedAt),
       });
       if (incidentOutcome) {
         await enqueueChannelNotifications(transaction, {

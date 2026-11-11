@@ -8,6 +8,7 @@ import {
 } from "./NotificationsPanel";
 import type { Notification } from "./NotificationsPanel";
 import { ReportsPanel } from "./ReportsPanel";
+import { IndicatorsPanel } from "./IndicatorsPanel";
 
 type User = {
   id: string;
@@ -57,6 +58,7 @@ type Incident = {
   summary: string;
   reason: string;
   evidence: string;
+  startedAt: string | null;
   detectedAt: string;
   openedAt: string;
   recoveredAt: string | null;
@@ -138,7 +140,7 @@ function App() {
   const [history, setHistory] = useState<Record<string, Check[]>>({});
   const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({});
   const [checkingChannel, setCheckingChannel] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"channels" | "incidents" | "notifications" | "reports">("channels");
+  const [activeTab, setActiveTab] = useState<"channels" | "incidents" | "notifications" | "reports" | "indicators">("channels");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -401,6 +403,12 @@ function App() {
               Notificaciones
             </button>
           )}
+          <button
+            className={`nav-link nav-button ${activeTab === "indicators" ? "active" : ""}`}
+            onClick={() => setActiveTab("indicators")}
+          >
+            Indicadores
+          </button>
           {canManage && (
             <button
               className={`nav-link nav-button ${activeTab === "reports" ? "active" : ""}`}
@@ -571,8 +579,10 @@ function App() {
           <IncidentsPanel channels={channels} user={page.user} setNotice={setNotice} />
         ) : activeTab === "notifications" ? (
           <NotificationsPanel isAdmin={page.user.role === "ADMIN"} setNotice={setNotice} />
-        ) : (
+        ) : activeTab === "reports" ? (
           <ReportsPanel setNotice={setNotice} />
+        ) : (
+          <IndicatorsPanel canImport={canManage} isAdmin={page.user.role === "ADMIN"} setNotice={setNotice} />
         )}
 
         <section className="about-section" id="acerca">
@@ -582,7 +592,7 @@ function App() {
             <h2>Una base para observar y aprender.</h2>
             <p>Proyecto universitario. No se conecta con sistemas internos del Banco de la Nación y no procesa transacciones reales.</p>
           </div>
-          <span className="version-label">PORTAL M4 · 0.5.0</span>
+          <span className="version-label">INDICADORES M5 · 0.6.0</span>
         </section>
       </main>
 
@@ -1029,7 +1039,7 @@ function IncidentsPanel({
             </div>
             <dl className="incident-dates">
               <div><dt>Detectada</dt><dd>{new Date(selected.detectedAt).toLocaleString("es-PE")}</dd></div>
-              <div><dt>Inicio</dt><dd>{new Date(selected.openedAt).toLocaleString("es-PE")}</dd></div>
+              <div><dt>Inicio real (primer fallo)</dt><dd>{selected.startedAt ? new Date(selected.startedAt).toLocaleString("es-PE") : "No registrado"}</dd></div>
               <div><dt>Recuperación técnica</dt><dd>{selected.recoveredAt ? new Date(selected.recoveredAt).toLocaleString("es-PE") : "Pendiente"}</dd></div>
               <div><dt>Resolución administrativa</dt><dd>{selected.resolvedAt ? new Date(selected.resolvedAt).toLocaleString("es-PE") : "Pendiente"}</dd></div>
               <div><dt>Cierre</dt><dd>{selected.closedAt ? new Date(selected.closedAt).toLocaleString("es-PE") : "Pendiente"}</dd></div>

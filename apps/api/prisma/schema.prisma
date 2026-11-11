@@ -90,16 +90,17 @@ enum FailureReportStatus {
 }
 
 model User {
-  id                   String                 @id @default(uuid()) @db.Uuid
-  email                String                 @unique @db.VarChar(254)
-  passwordHash         String                 @db.VarChar(255)
-  role                 UserRole               @default(VIEWER)
+  id                   String                  @id @default(uuid()) @db.Uuid
+  email                String                  @unique @db.VarChar(254)
+  passwordHash         String                  @db.VarChar(255)
+  role                 UserRole                @default(VIEWER)
   sessions             Session[]
   incidentEvents       IncidentEvent[]
   channelStatusChanges ChannelStatusHistory[]
   reviewedReports      FailureReport[]
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
+  scheduleImports      PaymentScheduleImport[]
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
 
   @@map("users")
 }
@@ -182,6 +183,7 @@ model Incident {
   summary          String           @db.VarChar(240)
   reason           String           @db.VarChar(500)
   evidence         String           @db.VarChar(2000)
+  startedAt        DateTime?
   detectedAt       DateTime         @default(now())
   openedAt         DateTime         @default(now())
   recoveredAt      DateTime?
@@ -306,4 +308,34 @@ model FailureReport {
   @@index([channelId, createdAt])
   @@index([incidentId])
   @@map("failure_reports")
+}
+
+model PaymentScheduleImport {
+  id           String        @id @default(uuid()) @db.Uuid
+  fileName     String        @db.VarChar(200)
+  rowCount     Int
+  createdCount Int
+  updatedCount Int
+  importedById String?       @db.Uuid
+  importedAt   DateTime      @default(now())
+  importedBy   User?         @relation(fields: [importedById], references: [id], onDelete: SetNull)
+  paymentDates PaymentDate[]
+
+  @@index([importedAt])
+  @@map("payment_schedule_imports")
+}
+
+model PaymentDate {
+  id          String                 @id @default(uuid()) @db.Uuid
+  date        DateTime               @db.Date
+  group       String                 @db.VarChar(60)
+  description String?                @db.VarChar(200)
+  importId    String?                @db.Uuid
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  import      PaymentScheduleImport? @relation(fields: [importId], references: [id], onDelete: SetNull)
+
+  @@unique([date, group])
+  @@index([date])
+  @@map("payment_dates")
 }

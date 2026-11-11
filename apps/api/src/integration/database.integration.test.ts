@@ -24,6 +24,8 @@ const concurrentChannelCode = `RACE_${suffix}`;
 const notificationChannelCode = `NOTIF_${suffix}`;
 const reportChannelCode = `REPORT_${suffix}`;
 const otherReportChannelCode = `REPORT2_${suffix}`;
+const indicatorChannelCode = `KPI_${suffix}`;
+const scheduleGroup = `PRUEBA_${suffix}`;
 const deliveredRecipientEmail = `m3-ok-${suffix.toLowerCase()}@simona.test`;
 const failingRecipientEmail = `m3-${suffix.toLowerCase()}@fallo.simona.test`;
 const testPassword = "Database-Test-Password-2026!";
@@ -105,6 +107,7 @@ suite("persistencia e integración PostgreSQL", () => {
               notificationChannelCode,
               reportChannelCode,
               otherReportChannelCode,
+              indicatorChannelCode,
             ],
           },
         },
@@ -113,8 +116,21 @@ suite("persistencia e integración PostgreSQL", () => {
     await prisma.channel.deleteMany({ where: { code: { in: [channelCode, historyChannelCode] } } });
     await prisma.channel.deleteMany({
       where: {
-        code: { in: [incidentChannelCode, concurrentChannelCode, notificationChannelCode, reportChannelCode, otherReportChannelCode] },
+        code: {
+          in: [
+            incidentChannelCode,
+            concurrentChannelCode,
+            notificationChannelCode,
+            reportChannelCode,
+            otherReportChannelCode,
+            indicatorChannelCode,
+          ],
+        },
       },
+    });
+    await prisma.paymentDate.deleteMany({ where: { group: scheduleGroup } });
+    await prisma.paymentScheduleImport.deleteMany({
+      where: { importedById: { in: [adminId, operatorId].filter((id): id is string => Boolean(id)) } },
     });
     await prisma.notificationRecipient.deleteMany({
       where: { email: { in: [deliveredRecipientEmail, failingRecipientEmail] } },
@@ -655,6 +671,118 @@ suite("persistencia e integración PostgreSQL", () => {
       where: { id: stored.id },
       data: { incidentId: null },
     })).rejects.toThrow();
+  });
+
+  it("imports the payment schedule and computes M5 indicators for a controlled period", async () => {
+    const viewerImport = await request(app)
+      .post("/api/payment-schedule/import")
+      .set("Cookie", viewerCookie)
+      .send({ fileName: "cronograma.csv", content: `fecha,grupo\n2025-03-02,${scheduleGroup}` });
+    expect(viewerImport.status).toBe(403);
+
+    const rejected = await request(app)
+      .post("/api/payment-schedule/import")
+      .set("Cookie", operatorCookie)
+      .send({ fileName: "cronograma.csv", content: `fecha,grupo\n2025-03-02,${scheduleGroup}\n2025-02-30,${scheduleGroup}` });
+    expect(rejected.status).toBe(422);
+    expect(rejected.body.error.details).toEqual([{ field: "línea 3", message: expect.stringContaining("Fecha inválida") }]);
+    expect(await prisma.paymentDate.count({ where: { group: scheduleGroup } })).toBe(0);
+
+    const imported = await request(app)
+      .post("/api/payment-schedule/import")
+      .set("Cookie", operatorCookie)
+      .send({
+        fileName: "cronograma.csv",
+        content: `fecha;grupo;descripcion\n02/03/2025;${scheduleGroup};Pago de prueba\n2025-03-20;${scheduleGroup};Fuera del periodo`,
+      });
+    expect(imported.status).toBe(201);
+    expect(imported.body.data.import).toMatchObject({ rowCount: 2, createdCount: 2, updatedCount: 0 });
+    const reimported = await request(app)
+      .post("/api/payment-schedule/import")
+      .set("Cookie", operatorCookie)
+      .send({ fileName: "cronograma-v2.csv", content: `fecha,grupo,descripcion\n2025-03-02,${scheduleGroup},Pago corregido` });
+    expect(reimported.body.data.import).toMatchObject({ rowCount: 1, createdCount: 0, updatedCount: 1 });
+    expect(await prisma.paymentDate.findFirst({ where: { group: scheduleGroup, date: new Date("2025-03-02") } }))
+      .toMatchObject({ description: "Pago corregido" });
+
+    const channel = await prisma.channel.create({
+      data: {
+        code: indicatorChannelCode,
+        name: "Canal de indicadores",
+        type: "APP",
+        simulatedTarget: "sim://app-bn",
+        currentStatus: ChannelStatus.AVAILABLE,
+        monitoringConfig: { create: {} },
+        statusHistory: {
+          create: [
+            { previousStatus: "UNKNOWN", newStatus: "AVAILABLE", source: "CHECK", changedAt: new Date("2025-02-28T12:00:00.000Z") },
+            { previousStatus: "AVAILABLE", newStatus: "UNAVAILABLE", source: "CHECK", changedAt: new Date("2025-03-02T10:00:00.000Z") },
+            { previousStatus: "UNAVAILABLE", newStatus: "AVAILABLE", source: "CHECK", changedAt: new Date("2025-03-02T12:00:00.000Z") },
+          ],
+        },
+      },
+    });
+    const incident = await prisma.incident.create({
+      data: {
+        channelId: channel.id,
+        status: "RESOLVED",
+        severity: "HIGH",
+        summary: "Canal no disponible",
+        reason: "Prueba de indicadores",
+        evidence: "{}",
+        startedAt: new Date("2025-03-02T09:58:00.000Z"),
+        detectedAt: new Date("2025-03-02T10:00:00.000Z"),
+        openedAt: new Date("2025-03-02T10:00:00.000Z"),
+        recoveredAt: new Date("2025-03-02T12:00:00.000Z"),
+        resolvedAt: new Date("2025-03-02T12:30:00.000Z"),
+      },
+    });
+    await prisma.notification.create({
+      data: {
+        kind: "CHANNEL_DOWN",
+        status: "SENT",
+        channelId: channel.id,
+        incidentId: incident.id,
+        recipientEmail: "kpi@simona.test",
+        subject: "Prueba",
+        body: "Prueba",
+        eventAt: new Date("2025-03-02T10:00:00.000Z"),
+        attempts: 1,
+        sentAt: new Date("2025-03-02T10:00:06.000Z"),
+        createdAt: new Date("2025-03-02T10:00:00.000Z"),
+      },
+    });
+    await expect(prisma.incident.update({ where: { id: incident.id }, data: { status: "CLOSED" } })).rejects.toThrow();
+    await expect(prisma.incident.update({ where: { id: incident.id }, data: { resolvedAt: null } })).rejects.toThrow();
+
+    const response = await request(app)
+      .get("/api/indicators")
+      .query({ from: "2025-03-01T05:00:00.000Z", to: "2025-03-03T05:00:00.000Z", target: "99" })
+      .set("Cookie", viewerCookie);
+    expect(response.status).toBe(200);
+    const { summary, channels, exceptions, paymentDates } = response.body.data;
+    const row = channels.find((item: { code: string }) => item.code === indicatorChannelCode);
+    expect(row.availabilityPercent).toBeCloseTo((46 / 48) * 100, 6);
+    expect(row.paymentDayAvailabilityPercent).toBeCloseTo((22 / 24) * 100, 6);
+    expect(row).toMatchObject({
+      incidents: 1,
+      incidentsOnPaymentDays: 1,
+      meanTimeToRestoreMs: 2 * 60 * 60 * 1000 + 2 * 60 * 1000,
+      belowTarget: true,
+      belowTargetOnPaymentDays: true,
+      durations: { downMs: 2 * 60 * 60 * 1000 },
+    });
+    expect(exceptions.map((item: { code: string }) => item.code)).toContain(indicatorChannelCode);
+    expect(summary).toMatchObject({
+      meanTimeToDetectMs: 120_000,
+      meanTimeToCommunicateMs: 6_000,
+      meanTimeToResolveMs: 150 * 60 * 1000,
+      incidents: 1,
+      incidentsOnPaymentDays: 1,
+      paymentDaysInPeriod: 1,
+      notifications: { sent: 1, failed: 0, deliveryRatePercent: 100 },
+    });
+    expect(paymentDates).toEqual([{ date: "2025-03-02", group: scheduleGroup, description: "Pago corregido" }]);
   });
 
   it("rejects invalid simulated targets and reports missing channels", async () => {
