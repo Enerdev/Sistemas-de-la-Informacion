@@ -224,3 +224,60 @@ export async function transitionIncident(
     return updated;
   });
 }
+
+const severityLabels: Record<IncidentSeverity, string> = {
+  LOW: "BAJA",
+  MEDIUM: "MEDIA",
+  HIGH: "ALTA",
+  CRITICAL: "CRÍTICA",
+};
+
+export async function changeIncidentSeverity(
+  repository: IncidentRepository,
+  input: {
+    incidentId: string;
+    severity: IncidentSeverity;
+    actor: IncidentActor;
+    note?: string;
+    now?: Date;
+  },
+) {
+  if (input.actor.role === "VIEWER") {
+    throw new AppError("No tienes permiso para gestionar incidencias", 403);
+  }
+  return repository.$transaction(async (transaction) => {
+    await transaction.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "incidents" WHERE "id" = ${input.incidentId}::uuid FOR UPDATE
+    `;
+    const incident = await transaction.incident.findUnique({ where: { id: input.incidentId } });
+    if (!incident) {
+      throw new AppError("Incidencia no encontrada", 404);
+    }
+    if (incident.status === IncidentStatus.CLOSED) {
+      throw new AppError("No se puede reclasificar una incidencia cerrada", 409);
+    }
+    if (incident.severity === input.severity) {
+      throw new AppError("La incidencia ya tiene esa severidad", 409);
+    }
+
+    const now = input.now ?? new Date();
+    const updated = await transaction.incident.update({
+      where: { id: incident.id },
+      data: { severity: input.severity },
+    });
+    const change = `Severidad ${severityLabels[incident.severity]} → ${severityLabels[input.severity]}`;
+    await transaction.incidentEvent.create({
+      data: {
+        incidentId: incident.id,
+        actorId: input.actor.userId,
+        actorType: IncidentActorType.USER,
+        kind: IncidentEventKind.SEVERITY_CHANGED,
+        previousStatus: incident.status,
+        newStatus: incident.status,
+        note: input.note ? `${change}. ${input.note}` : change,
+        createdAt: now,
+      },
+    });
+    return { incident: updated, previousSeverity: incident.severity };
+  });
+}

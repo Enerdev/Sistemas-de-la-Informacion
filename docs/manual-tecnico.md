@@ -232,6 +232,7 @@ Configuración admitida: intervalo 15–86.400 s; timeout 100–60.000 ms; umbra
 |---|---|---|---|
 | `GET` | `/api/incidents?channelId=&status=&severity=&from=&to=&limit=&cursor=` | Sesión | Filtrar/listar; límite 1–100, predeterminado 25 |
 | `GET` | `/api/incidents/:id` | Sesión | Consultar incidente, evidencia, verificación y eventos |
+| `PATCH` | `/api/incidents/:id/severity` | ADMIN/OPERATOR | Reclasificar severidad `{ "severity", "comment"? }`; no se permite en incidencias cerradas |
 | `PATCH` | `/api/incidents/:id/status` | ADMIN/OPERATOR | Cambiar estado con `{ "status": "...", "comment": "..." }`; cierre solo ADMIN |
 
 Transiciones aceptadas: `OPEN → IN_PROGRESS`; `ACKNOWLEDGED → IN_PROGRESS`; `IN_PROGRESS → RESOLVED`; `RESOLVED → CLOSED`. Los cambios fuera de transición responden conflicto; `VIEWER` recibe denegación de permisos.
@@ -316,7 +317,7 @@ Los archivos de test cubren validación, autenticación, clasificación, verific
 
 ### Resultado actualizado (10 de noviembre de 2026)
 
-Con PostgreSQL local y `TEST_DATABASE_URL` configurada se ejecutan **90 pruebas sin omisiones**. Incluyen M6 (contraseña temporal obligatoria, cambio de rol con efecto inmediato, desactivación, protección del último ADMIN, bitácora con actor e IP e inmutabilidad comprobada contra la base), la descarga de reportes CSV/PDF con valores exactos, el escapado contra inyección de fórmulas y la paginación del PDF, el cálculo M5 sobre un periodo controlado (disponibilidad global y en fechas de pago, tiempos medios, entregas, excepción) y la importación CSV con rechazo atómico, el portal M4 (estado público sin datos internos, reporte ciudadano, seguimiento, revisión y vinculación con validación de canal) y el recorrido M1→M2→M3: caída simulada, apertura de incidencia, notificación enviada, rechazo simulado con reintentos hasta `FAILED`, reintento manual, recuperación y notificación de restablecimiento.
+Con PostgreSQL local y `TEST_DATABASE_URL` configurada se ejecutan **96 pruebas sin omisiones**. Incluyen la reclasificación de severidad, el generador de la demo (continuidad del historial, una incidencia por caída, variedad de estados y severidades, caídas en fechas de pago y determinismo), M6 (contraseña temporal obligatoria, cambio de rol con efecto inmediato, desactivación, protección del último ADMIN, bitácora con actor e IP e inmutabilidad comprobada contra la base), la descarga de reportes CSV/PDF con valores exactos, el escapado contra inyección de fórmulas y la paginación del PDF, el cálculo M5 sobre un periodo controlado (disponibilidad global y en fechas de pago, tiempos medios, entregas, excepción) y la importación CSV con rechazo atómico, el portal M4 (estado público sin datos internos, reporte ciudadano, seguimiento, revisión y vinculación con validación de canal) y el recorrido M1→M2→M3: caída simulada, apertura de incidencia, notificación enviada, rechazo simulado con reintentos hasta `FAILED`, reintento manual, recuperación y notificación de restablecimiento.
 
 ### Resultado de QA anterior
 
@@ -360,6 +361,7 @@ Para una nueva entrega, repita los comandos en el entorno destino y adjunte sali
 - [`apps/api/src/notifications/`](../apps/api/src/notifications/), cola, despachador y transportes M3.
 - [`apps/api/src/indicators/`](../apps/api/src/indicators/) y [`apps/api/src/payment-schedule/`](../apps/api/src/payment-schedule/), indicadores e importación del cronograma M5.
 - [`apps/api/src/exports/`](../apps/api/src/exports/), reportes CSV y PDF.
+- [`apps/api/src/demo/generate.ts`](../apps/api/src/demo/generate.ts) y [`apps/api/prisma/seed-demo.ts`](../apps/api/prisma/seed-demo.ts), datos de demostración.
 - [`apps/api/src/users/`](../apps/api/src/users/), [`apps/api/src/audit/`](../apps/api/src/audit/) y [`scripts/db/`](../scripts/db/), usuarios, bitácora y respaldo M6.
 - [`apps/api/src/public/routes.ts`](../apps/api/src/public/routes.ts) y [`apps/api/src/reports/routes.ts`](../apps/api/src/reports/routes.ts), portal público y revisión de reportes M4.
 - [`QA-REPORT.md`](../QA-REPORT.md), resultados reportados y límites de la ejecución QA del 14/10/2026.

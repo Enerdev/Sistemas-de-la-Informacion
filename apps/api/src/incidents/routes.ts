@@ -6,7 +6,7 @@ import { prisma } from "../db/prisma.js";
 import { AppError } from "../errors/app-error.js";
 import { asyncHandler } from "../http/async-handler.js";
 import { requireAuth } from "../auth/middleware.js";
-import { transitionIncident } from "./lifecycle.js";
+import { changeIncidentSeverity, transitionIncident } from "./lifecycle.js";
 
 export const incidentQuerySchema = z.object({
   channelId: z.string().uuid().optional(),
@@ -23,6 +23,11 @@ export const incidentQuerySchema = z.object({
 
 export const incidentTransitionSchema = z.object({
   status: z.nativeEnum(IncidentStatus),
+  comment: z.string().trim().max(500).optional(),
+}).strict();
+
+export const incidentSeveritySchema = z.object({
+  severity: z.nativeEnum(IncidentSeverity),
   comment: z.string().trim().max(500).optional(),
 }).strict();
 
@@ -118,6 +123,31 @@ router.patch(
       entityType: "incident",
       entityId: id,
       summary: `Cambió la incidencia ${id.slice(0, 8)} a ${input.status}${input.comment ? `: ${input.comment}` : ""}`,
+    });
+    response.status(200).json({ data: { incident } });
+  }),
+);
+
+router.patch(
+  "/:id/severity",
+  asyncHandler(async (request, response) => {
+    const id = idSchema.parse(request.params.id);
+    const input = incidentSeveritySchema.parse(request.body);
+    const actor = request.auth;
+    if (!actor) {
+      throw new AppError("Autenticación requerida", 401);
+    }
+    const { incident, previousSeverity } = await changeIncidentSeverity(prisma, {
+      incidentId: id,
+      severity: input.severity,
+      actor: { userId: actor.userId, role: actor.role },
+      note: input.comment,
+    });
+    await recordAudit(request, {
+      action: "incident.severity_change",
+      entityType: "incident",
+      entityId: id,
+      summary: `Reclasificó la incidencia ${id.slice(0, 8)}: ${previousSeverity} → ${input.severity}${input.comment ? `: ${input.comment}` : ""}`,
     });
     response.status(200).json({ data: { incident } });
   }),

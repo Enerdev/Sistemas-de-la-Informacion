@@ -43,7 +43,7 @@ type IncidentSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 type IncidentEvent = {
   id: string;
-  kind: "OPENED" | "STATUS_CHANGED" | "CHANNEL_RECOVERED";
+  kind: "OPENED" | "STATUS_CHANGED" | "CHANNEL_RECOVERED" | "SEVERITY_CHANGED";
   actorType: "SYSTEM" | "USER";
   previousStatus: IncidentStatus | null;
   newStatus: IncidentStatus;
@@ -136,6 +136,17 @@ const incidentSeverityLabels: Record<IncidentSeverity, string> = {
 };
 
 const intervalMilliseconds = 15_000;
+
+/** Destinos sim:// que permiten simular escenarios desde la interfaz sin perder la identidad del canal. */
+function scenarioTargets(channel: Channel) {
+  const slug = channel.code.toLowerCase().replaceAll("_", "-");
+  return [
+    { label: "Normal (responde)", target: `sim://${slug}` },
+    { label: "Lento (2.000 ms)", target: `sim://slow-2000/${slug}` },
+    { label: "Sin respuesta (timeout)", target: `sim://${slug}-timeout` },
+    { label: "Caído (falla)", target: `sim://${slug}-down` },
+  ];
+}
 
 function App() {
   const [page, setPage] = useState<PageState>({ kind: "loading" });
@@ -278,6 +289,23 @@ function App() {
       await loadChannels();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "No se pudo actualizar el canal");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleScenarioChange(channel: Channel, simulatedTarget: string) {
+    setBusy(true);
+    setNotice("");
+    try {
+      await apiRequest<{ channel: Channel }>(`/api/channels/${channel.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ simulatedTarget }),
+      });
+      await loadChannels();
+      setNotice(`${channel.name}: escenario simulado ${simulatedTarget}. Las próximas verificaciones usarán este destino.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudo cambiar el escenario");
     } finally {
       setBusy(false);
     }
@@ -512,6 +540,23 @@ function App() {
                     <span>{typeLabels[channel.type]}</span>
                     <code>{channel.simulatedTarget}</code>
                   </div>
+                  {canManage && (
+                    <label className="scenario-select">
+                      Escenario simulado
+                      <select
+                        value={channel.simulatedTarget}
+                        disabled={busy}
+                        onChange={(event) => void handleScenarioChange(channel, event.target.value)}
+                      >
+                        {!scenarioTargets(channel).some(({ target }) => target === channel.simulatedTarget) && (
+                          <option value={channel.simulatedTarget}>Actual: {channel.simulatedTarget}</option>
+                        )}
+                        {scenarioTargets(channel).map(({ label, target }) => (
+                          <option key={target} value={target}>{label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                   <div className="last-check">
                     <span>Última verificación</span>
                     {channel.checks[0] ? (
@@ -975,6 +1020,27 @@ function IncidentsPanel({
     }
   }
 
+  async function updateSeverity(severity: IncidentSeverity) {
+    if (!selected) return;
+    setSaving(true);
+    setNotice("");
+    try {
+      await apiRequest<{ incident: Incident }>(`/api/incidents/${selected.id}/severity`, {
+        method: "PATCH",
+        body: JSON.stringify({ severity, comment: comment.trim() || undefined }),
+      });
+      setComment("");
+      await loadIncidents();
+      const { incident } = await apiRequest<{ incident: Incident }>(`/api/incidents/${selected.id}`);
+      setSelected(incident);
+      setNotice(`Severidad actualizada: ${incidentSeverityLabels[incident.severity]}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "No se pudo reclasificar la incidencia");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const nextStatus = selected?.status === "OPEN" || selected?.status === "ACKNOWLEDGED"
     ? "IN_PROGRESS"
     : selected?.status === "IN_PROGRESS"
@@ -1118,11 +1184,16 @@ function IncidentsPanel({
                     <strong>
                       {event.kind === "CHANNEL_RECOVERED"
                         ? "Recuperación técnica"
+                        : event.kind === "SEVERITY_CHANGED"
+                          ? "Reclasificación de severidad"
                         : event.kind === "OPENED"
                           ? "Incidencia abierta automáticamente"
                           : `${event.previousStatus ? incidentStatusLabels[event.previousStatus] : "—"} → ${incidentStatusLabels[event.newStatus]}`}
                     </strong>
-                    <p>{event.note || (event.actor?.email ?? "Sistema")}</p>
+                    <p>
+                      {event.note || (event.actor?.email ?? "Sistema")}
+                      {event.note && event.actor ? ` · ${event.actor.email}` : ""}
+                    </p>
                     <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString("es-PE")}</time>
                   </div>
                 </div>
@@ -1167,6 +1238,25 @@ function IncidentsPanel({
                 <button className="primary-button" disabled={saving} type="submit">
                   {saving ? "Actualizando…" : incidentStatusLabels[nextStatus]}
                 </button>
+              </form>
+            )}
+            {canManage && selected.status !== "CLOSED" && (
+              <form
+                className="severity-action"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const value = new FormData(event.currentTarget).get("severity") as IncidentSeverity;
+                  void updateSeverity(value);
+                }}
+              >
+                <label htmlFor="incident-severity">Reclasificar severidad</label>
+                <select id="incident-severity" name="severity" defaultValue={selected.severity} key={`${selected.id}-${selected.severity}`}>
+                  {Object.entries(incidentSeverityLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <button className="toggle-button" disabled={saving} type="submit">Reclasificar</button>
+                <span className="field-hint">El comentario de auditoría, si lo escribiste, se guarda con el cambio.</span>
               </form>
             )}
             {selected.status === "RESOLVED" && user.role !== "ADMIN" && (

@@ -58,6 +58,7 @@ enum IncidentEventKind {
   OPENED
   STATUS_CHANGED
   CHANNEL_RECOVERED
+  SEVERITY_CHANGED
 }
 
 enum IncidentActorType {

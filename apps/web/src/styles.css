@@ -372,6 +372,14 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .audit-table code { font-size: 10px; color: #3c5a50; }
 .audit-more { margin-top: 10px; padding: 7px 12px; font-size: 11px; }
 
+.severity-action { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #edf0ed; color: #5d6d66; font-size: 10px; font-weight: 700; }
+.severity-action select { min-height: 32px; padding: 5px 8px; border: 1px solid #dce5df; border-radius: 3px; background: #fff; font-size: 11px; }
+.severity-action .toggle-button { min-height: 32px; padding: 6px 10px; font-size: 10px; }
+.severity-action .field-hint { flex-basis: 100%; margin: 0; font-weight: 400; }
+
+.scenario-select { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 4px; color: #64736d; font-size: 9px; font-weight: 700; }
+.scenario-select select { min-height: 30px; padding: 4px 6px; border: 1px solid #dce5df; border-radius: 3px; background: #fff; color: #354a43; font-size: 10px; }
+
 @media (max-width: 1240px) {
   .topbar { flex-wrap: wrap; row-gap: 4px; padding: 12px 0; }
   .topbar nav { order: 3; width: 100%; flex-wrap: wrap; gap: 6px 22px; }

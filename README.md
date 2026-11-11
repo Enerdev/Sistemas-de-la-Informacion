@@ -66,6 +66,18 @@ El seed no imprime credenciales. Opcionalmente, si se definieron ambos valores p
 
 Las migraciones crean tablas de usuarios, sesiones, canales, configuración, verificaciones, incidencias, eventos de incidencia e historial de estado. La migración inicial incluye una restricción para impedir más de una incidencia activa por canal; la migración M1 añade procedencia (`SIMULATED`/`HTTP`) y código HTTP, y la migración M2 agrega evidencia, detección y recuperación técnica de incidencias.
 
+## Datos de demostración
+
+```bash
+npm run db:seed:demo -- --reset
+```
+
+Reemplaza los **datos operativos** (canales, verificaciones, historial, incidencias, notificaciones, reportes ciudadanos y cronograma) por seis semanas simuladas y deterministas que terminan en el momento de la carga: unas 37.000 verificaciones cada 5 minutos, 9 caídas con su incidencia (tres en fechas de pago), episodios de lentitud, una ventana de mantenimiento, incidencias cerradas, en investigación y abiertas con severidades BAJA a CRÍTICA, alertas enviadas (y dos fallidas), 13 reportes ciudadanos y 7 fechas de pago ficticias. Conserva usuarios, sesiones y la bitácora, donde deja un registro `system.demo_seed`.
+
+Cada verificación simulada pasa por la misma clasificación que usa el monitor real, así que los estados, la detección (10 minutos con 3 fallos cada 5 minutos) y las recuperaciones son exactamente los que el sistema habría producido. Necesita un ADMIN activo (`npm run db:seed`). Si defines `SEED_DEMO_PASSWORD` en `apps/api/.env`, crea también `operador.demo@simona.test` (OPERATOR) y `consulta.demo@simona.test` (VIEWER) con esa contraseña. Se niega a correr sin `--reset` y, con `NODE_ENV=production`, sin `--allow-production`. Haz un respaldo antes (`npm run db:backup`).
+
+Al terminar, los tres canales quedan OPERATIVOS y con monitoreo habilitado. App BN tiene una incidencia en investigación y Banca por internet una abierta, por lo que **una nueva caída en esos canales no abre otra incidencia** (regla de una incidencia activa por canal). Para la demostración en vivo usa **Multired Virtual**.
+
 ## Ejecutar la aplicación
 
 Abre terminales separadas desde la raíz:
@@ -95,6 +107,7 @@ La web usa el proxy de Vite para enviar `/api` a la API. `/api/health` informa l
 - Verificaciones M1 con una interfaz de adaptador intercambiable: simulador determinista por defecto y cliente HTTP opcional.
 - Scheduler `node-cron`, con un barrido cada 15 segundos y ejecución según intervalo de cada canal (inicial: 60 segundos). El scheduler evita inicios duplicados y barridos solapados dentro de un proceso. Varias instancias requieren lock/coordinación distribuida adicional.
 - Verificación manual e historial paginado: `POST /api/channels/:id/check` y `GET /api/channels/:id/checks?limit=20`. Requieren rol `ADMIN` u `OPERATOR`.
+- Escenario simulado desde la tarjeta del canal (ADMIN/OPERATOR): Normal, Lento (2.000 ms), Sin respuesta (timeout) o Caído, que cambian el destino a `sim://<canal>`, `sim://slow-2000/<canal>`, `sim://<canal>-timeout` o `sim://<canal>-down`.
 - Configuración por canal: `PATCH /api/channels/:id/monitoring/config` admite intervalos, timeout, umbral de latencia y umbrales de caída/recuperación.
 - Panel con estado actual, última comprobación, latencia, procedencia, historial y controles para mantenimiento.
 
@@ -153,7 +166,7 @@ Transiciones permitidas:
 | `IN_PROGRESS` | `RESOLVED` | `ADMIN` u `OPERATOR` |
 | `RESOLVED` | `CLOSED` | Solo `ADMIN` |
 
-Las otras transiciones responden `409`; un `VIEWER` no puede gestionar incidencias (`403`). Cada cambio escribe actor, estados, fecha y comentario opcional en `IncidentEvent`. Los endpoints autenticados son:
+Las incidencias abiertas, en investigación o resueltas pueden **reclasificarse de severidad** (`PATCH /api/incidents/:id/severity` con `{ "severity": "CRITICAL", "comment": "..." }`, ADMIN u OPERATOR); el cambio queda como evento `SEVERITY_CHANGED` y en la bitácora. Las otras transiciones responden `409`; un `VIEWER` no puede gestionar incidencias (`403`). Cada cambio escribe actor, estados, fecha y comentario opcional en `IncidentEvent`. Los endpoints autenticados son:
 
 - `GET /api/incidents?channelId=<uuid>&status=OPEN&severity=HIGH&from=<ISO>&to=<ISO>&limit=25`
 - `GET /api/incidents/:id` (incluye evidencia, verificación de detección y auditoría)

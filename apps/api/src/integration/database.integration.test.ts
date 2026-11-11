@@ -932,6 +932,47 @@ suite("persistencia e integración PostgreSQL", () => {
     await expect(prisma.auditLog.deleteMany({ where: { entityId: managedId } })).rejects.toThrow(/solo inserción/);
   });
 
+  it("reclassifies incident severity with an audited event", async () => {
+    const channel = await prisma.channel.findUniqueOrThrow({ where: { code: indicatorChannelCode } });
+    const incident = await prisma.incident.create({
+      data: {
+        channelId: channel.id,
+        status: "IN_PROGRESS",
+        severity: "HIGH",
+        summary: "Canal no disponible",
+        reason: "Prueba de severidad",
+        evidence: "{}",
+        detectedAt: new Date("2025-03-05T10:00:00.000Z"),
+        openedAt: new Date("2025-03-05T10:00:00.000Z"),
+      },
+    });
+
+    expect((await request(app).patch(`/api/incidents/${incident.id}/severity`).set("Cookie", viewerCookie).send({ severity: "LOW" })).status)
+      .toBe(403);
+    const changed = await request(app)
+      .patch(`/api/incidents/${incident.id}/severity`)
+      .set("Cookie", operatorCookie)
+      .send({ severity: "CRITICAL", comment: "Afecta una fecha de pago." });
+    expect(changed.status).toBe(200);
+    expect(changed.body.data.incident.severity).toBe("CRITICAL");
+    expect(await prisma.incidentEvent.findFirst({ where: { incidentId: incident.id, kind: "SEVERITY_CHANGED" } })).toMatchObject({
+      actorId: operatorId,
+      previousStatus: "IN_PROGRESS",
+      newStatus: "IN_PROGRESS",
+      note: "Severidad ALTA → CRÍTICA. Afecta una fecha de pago.",
+    });
+    expect(await prisma.auditLog.findFirst({ where: { action: "incident.severity_change", entityId: incident.id } }))
+      .toMatchObject({ actorEmail: operatorEmail });
+    expect((await request(app).patch(`/api/incidents/${incident.id}/severity`).set("Cookie", operatorCookie).send({ severity: "CRITICAL" })).status)
+      .toBe(409);
+    await prisma.incident.update({
+      where: { id: incident.id },
+      data: { status: "CLOSED", resolvedAt: new Date("2025-03-05T11:00:00.000Z"), closedAt: new Date("2025-03-05T12:00:00.000Z") },
+    });
+    expect((await request(app).patch(`/api/incidents/${incident.id}/severity`).set("Cookie", operatorCookie).send({ severity: "LOW" })).status)
+      .toBe(409);
+  });
+
   it("rejects invalid simulated targets and reports missing channels", async () => {
     const invalid = await request(app)
       .post("/api/channels")

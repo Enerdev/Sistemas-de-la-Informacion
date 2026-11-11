@@ -18,6 +18,14 @@ Demostrar, con datos **simulados**, el recorrido de catálogo → verificación 
    ```
 
 3. Si se necesita gestionar canales/incidencias, configurar en local `SEED_ADMIN_EMAIL` y `SEED_ADMIN_PASSWORD` con valores de demostración y volver a ejecutar seed. No usar credenciales reales ni mostrarlas en pantalla.
+   **Justo antes de exponer**, cargar los datos de demostración (reemplaza los datos operativos; hacer respaldo antes):
+
+   ```bash
+   npm run db:backup
+   npm run db:seed:demo -- --reset
+   ```
+
+   Para mostrar alertas reales de prueba, usar `NOTIFICATIONS_DRIVER=ethereal` en `apps/api/.env` y reiniciar la API.
 4. Mantener `MONITORING_DRIVER=simulated`.
 5. Abrir terminales separadas:
 
@@ -134,6 +142,29 @@ Concluir mencionando:
 
 Al terminar, cerrar sesión, detener los servidores en las terminales y retirar el archivo local `simona-demo.cookies`. No incorporarlo al repositorio.
 
+## 3B. Recorrido completo con los datos de demostración (versión final)
+
+Este recorrido demuestra todo el sistema en un solo flujo. Usa **Multired Virtual**: tras `db:seed:demo` es el único canal sin incidencia activa, y la regla de una incidencia activa por canal impediría abrir otra en App BN o Banca por internet. Si ya se ensayó, volver a ejecutar `npm run db:seed:demo -- --reset`.
+
+| # | Acción en pantalla | Qué se demuestra |
+|---|---|---|
+| 1 | Abrir `/estado` en otra pestaña: "Todos los canales están operativos" | M4: portal público sin sesión |
+| 2 | Iniciar sesión como ADMIN u `operador.demo`. En **Canales**, en la tarjeta de Multired Virtual elegir **Escenario simulado → Caído (falla)** | M1: el canal "deja de responder" |
+| 3 | Pulsar **Verificar ahora** tres veces (o esperar al monitor programado) | M1: verificación registrada con fecha, resultado y latencia |
+| 4 | Ver el estado: OPERATIVO → DEGRADADO → **CAÍDO** al tercer fallo | M1: clasificación por umbral |
+| 5 | **Incidencias**: aparece una incidencia ABIERTA, con inicio real, detección, motivo y evidencia | M2: apertura automática sin duplicados |
+| 6 | En el detalle, sección **Notificaciones**: alertas de caída por destinatario | M3: alerta generada |
+| 7 | **Notificaciones**: estado ENVIADA y enlace **Ver correo** (Ethereal); tiempo de comunicación en segundos | M3: envío comprobable |
+| 8 | Recargar `/estado`: **Multired Virtual — Caído** y la incidencia visible; enviar un **reporte de falla** y anotar el código | M4: portal y reporte ciudadano |
+| 9 | Pasar la incidencia a EN INVESTIGACIÓN con comentario; **reclasificar** a CRÍTICA; en **Reportes ciudadanos**, vincular el reporte | M2: gestión, severidad y auditoría |
+| 10 | En la tarjeta del canal elegir **Escenario simulado → Normal (responde)** | Simulación de la reparación |
+| 11 | **Verificar ahora** dos veces: CAÍDO → **OPERATIVO** al segundo éxito | M1: umbral de recuperación |
+| 12 | En el detalle de la incidencia: evento **Recuperación técnica**; la incidencia sigue en investigación hasta que TI la resuelva | M2: recuperación separada de la resolución |
+| 13 | Ver la alerta de **restablecimiento** enviada | M3: notificación de recuperación |
+| 14 | **Indicadores**: disponibilidad, tiempos medios, notificaciones entregadas y reporte por excepción; descargar el PDF de excepción. En **Administración**, mostrar la bitácora con todo lo realizado | M5, reportes y M6 |
+
+Para el cierre: resolver y (como ADMIN) cerrar la incidencia, y consultar el código del reporte en `/estado`.
+
 ## 4. Escenarios simulados disponibles
 
 | Destino | Observación del verificador simulado |
@@ -145,6 +176,7 @@ Al terminar, cerrar sesión, detener los servidores en las terminales y retirar 
 | `sim://timeout` | Timeout simulado |
 | `sim://slow-1500` | Respuesta simulada de 1.500 ms; estado degradado con valor predeterminado |
 | `sim://degraded-2000` | Respuesta simulada de 2.000 ms |
+| `sim://<canal>-down`, `sim://<canal>-timeout`, `sim://slow-2000/<canal>` | Lo que aplica el selector **Escenario simulado** de cada tarjeta (caído, sin respuesta, lento) |
 
 Los destinos son etiquetas deterministas de demostración. Ninguno representa disponibilidad observada de una aplicación, sitio o canal real.
 
@@ -155,4 +187,5 @@ Los destinos son etiquetas deterministas de demostración. Ninguno representa di
 - **No abre la incidencia:** revisar el conteo de fallos previos del canal, su `failureThreshold`, que se use `sim://down` y que la tercera verificación haya terminado.
 - **No recupera:** comprobar destino `sim://app-bn`, `recoveryThreshold` y dos verificaciones manuales exitosas.
 - **El endpoint de actualización falla:** verificar UUID, sesión local no vencida y rol `ADMIN`/`OPERATOR`; no incluir el token en capturas.
-- **Se decide no usar `curl`:** explicar el flujo y su limitación de UI; no fingir que la interfaz permite editar el destino. El cambio de estado de incidencias sí está disponible desde el panel.
+- **Cambiar el destino del canal:** ya no requiere `curl`; usar el selector **Escenario simulado** de la tarjeta del canal (ADMIN u OPERATOR).
+- **El canal cae pero no se abre incidencia:** ese canal ya tiene una incidencia activa (abierta, en investigación). Usar Multired Virtual o recargar la demo con `npm run db:seed:demo -- --reset`.
