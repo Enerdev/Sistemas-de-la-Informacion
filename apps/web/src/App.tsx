@@ -414,7 +414,7 @@ function App() {
               className={`nav-link nav-button ${activeTab === "reports" ? "active" : ""}`}
               onClick={() => setActiveTab("reports")}
             >
-              Reportes
+              Reportes ciudadanos
             </button>
           )}
           <a className="nav-link" href="/estado">Portal público</a>
@@ -592,7 +592,7 @@ function App() {
             <h2>Una base para observar y aprender.</h2>
             <p>Proyecto universitario. No se conecta con sistemas internos del Banco de la Nación y no procesa transacciones reales.</p>
           </div>
-          <span className="version-label">INDICADORES M5 · 0.6.0</span>
+          <span className="version-label">REPORTES · 0.7.0</span>
         </section>
       </main>
 
@@ -899,6 +899,17 @@ function IncidentsPanel({
     }
   }, [channelFilter, fromFilter, selected, setNotice, severityFilter, statusFilter, toFilter]);
 
+  function exportUrl(format: "csv" | "pdf") {
+    // Sin fechas en los filtros, el reporte cubre los últimos 365 días.
+    const to = toFilter ? new Date(toFilter) : new Date();
+    const from = fromFilter ? new Date(fromFilter) : new Date(to.getTime() - 365 * 24 * 60 * 60 * 1000);
+    const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+    if (channelFilter) params.set("channelId", channelFilter);
+    if (statusFilter) params.set("status", statusFilter);
+    if (severityFilter) params.set("severity", severityFilter);
+    return `/api/exports/incidents.${format}?${params.toString()}`;
+  }
+
   useEffect(() => {
     void loadIncidents();
   }, [loadIncidents]);
@@ -995,6 +1006,11 @@ function IncidentsPanel({
           {loading ? "Cargando…" : "Filtrar"}
         </button>
       </form>
+      <div className="export-links">
+        <span>Exportar con estos filtros:</span>
+        <a className="toggle-button" href={exportUrl("csv")} download>CSV</a>
+        <a className="toggle-button" href={exportUrl("pdf")} download>PDF</a>
+      </div>
 
       <div className="incident-layout">
         <div className="incident-list" aria-live="polite">

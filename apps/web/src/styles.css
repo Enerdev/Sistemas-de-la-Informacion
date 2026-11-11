@@ -350,6 +350,14 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .schedule-section .recipient-form { grid-template-columns: minmax(0, 1fr) auto; margin-bottom: 12px; }
 .schedule-section .notice, .schedule-section .portal-success { margin: 0 0 10px; }
 
+.export-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -8px 0 16px; color: #64736d; font-size: 10px; font-weight: 700; }
+.export-links .toggle-button, .report-downloads .toggle-button { display: inline-flex; align-items: center; min-height: 28px; padding: 5px 10px; font-size: 10px; }
+.report-downloads { margin-bottom: 16px; padding: 14px 16px; border: 1px solid #e1e9e4; border-radius: 5px; background: #fff; }
+.report-downloads h3 { margin: 0 0 8px; color: #29413b; font-size: 13px; }
+.report-downloads ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 18px; margin: 0; padding: 0; list-style: none; }
+.report-downloads li { display: flex; align-items: center; gap: 8px; color: #4e5f58; font-size: 11px; }
+.report-downloads li span { flex: 1 1 auto; }
+
 @media (max-width: 1240px) {
   .topbar { flex-wrap: wrap; row-gap: 4px; padding: 12px 0; }
   .topbar nav { order: 3; width: 100%; flex-wrap: wrap; gap: 6px 22px; }
@@ -390,6 +398,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   .portal-forms { grid-template-columns: 1fr; }
   .indicator-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .indicator-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .report-downloads ul { grid-template-columns: 1fr; }
   .portal-summary { margin-right: 0; margin-left: 0; }
   .portal-section { padding-right: 0; padding-left: 0; }
   .portal-channels li, .portal-incidents li { align-items: flex-start; flex-direction: column; }

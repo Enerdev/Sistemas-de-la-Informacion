@@ -258,6 +258,16 @@ El límite por IP está en memoria (`apps/api/src/http/rate-limit.ts`): es váli
 
 El cálculo vive en [`apps/api/src/indicators/calculations.ts`](../apps/api/src/indicators/calculations.ts) (funciones puras con pruebas unitarias) y [`service.ts`](../apps/api/src/indicators/service.ts). Los días de pago se interpretan en hora de Lima (UTC−5, sin horario de verano). La ruta de importación se monta antes del parser JSON global para admitir hasta 256 KB.
 
+### Reportes CSV/PDF
+
+| Método | Ruta | Acceso | Función |
+|---|---|---|---|
+| `GET` | `/api/exports/availability.{csv,pdf}?from=&to=&target=&channelId=&granularity=` | Sesión | Disponibilidad por canal (`channel`) o por canal y día (`day`) |
+| `GET` | `/api/exports/exceptions.{csv,pdf}?from=&to=&target=` | Sesión | Canal-día de pago bajo la meta |
+| `GET` | `/api/exports/incidents.{csv,pdf}?from=&to=&channelId=&status=&severity=` | Sesión | Incidencias detectadas en el periodo (máx. 5000 filas) |
+
+Cada reporte se arma una sola vez como estructura `Report` (título, metadatos, resumen, columnas, filas y notas) en [`apps/api/src/exports/reports.ts`](../apps/api/src/exports/reports.ts) y se convierte a CSV ([`csv.ts`](../apps/api/src/exports/csv.ts)) o PDF ([`pdf.ts`](../apps/api/src/exports/pdf.ts)), de modo que ambos formatos muestran los mismos datos. Los parámetros se validan estrictamente: un parámetro que no corresponde al reporte responde `400`.
+
 ## 8. Ejecución de la aplicación
 
 Después de configurar PostgreSQL, migrar y ejecutar seed, abra dos terminales en la raíz:
@@ -292,7 +302,7 @@ Los archivos de test cubren validación, autenticación, clasificación, verific
 
 ### Resultado actualizado (10 de noviembre de 2026)
 
-Con PostgreSQL local y `TEST_DATABASE_URL` configurada se ejecutan **81 pruebas sin omisiones**. Incluyen el cálculo M5 sobre un periodo controlado (disponibilidad global y en fechas de pago, tiempos medios, entregas, excepción) y la importación CSV con rechazo atómico, el portal M4 (estado público sin datos internos, reporte ciudadano, seguimiento, revisión y vinculación con validación de canal) y el recorrido M1→M2→M3: caída simulada, apertura de incidencia, notificación enviada, rechazo simulado con reintentos hasta `FAILED`, reintento manual, recuperación y notificación de restablecimiento.
+Con PostgreSQL local y `TEST_DATABASE_URL` configurada se ejecutan **86 pruebas sin omisiones**. Incluyen la descarga de reportes CSV/PDF con valores exactos, el escapado contra inyección de fórmulas y la paginación del PDF, el cálculo M5 sobre un periodo controlado (disponibilidad global y en fechas de pago, tiempos medios, entregas, excepción) y la importación CSV con rechazo atómico, el portal M4 (estado público sin datos internos, reporte ciudadano, seguimiento, revisión y vinculación con validación de canal) y el recorrido M1→M2→M3: caída simulada, apertura de incidencia, notificación enviada, rechazo simulado con reintentos hasta `FAILED`, reintento manual, recuperación y notificación de restablecimiento.
 
 ### Resultado de QA anterior
 
@@ -332,5 +342,6 @@ Para una nueva entrega, repita los comandos en el entorno destino y adjunte sali
 - [`apps/api/src/incidents/lifecycle.ts`](../apps/api/src/incidents/lifecycle.ts), ciclo M2.
 - [`apps/api/src/notifications/`](../apps/api/src/notifications/), cola, despachador y transportes M3.
 - [`apps/api/src/indicators/`](../apps/api/src/indicators/) y [`apps/api/src/payment-schedule/`](../apps/api/src/payment-schedule/), indicadores e importación del cronograma M5.
+- [`apps/api/src/exports/`](../apps/api/src/exports/), reportes CSV y PDF.
 - [`apps/api/src/public/routes.ts`](../apps/api/src/public/routes.ts) y [`apps/api/src/reports/routes.ts`](../apps/api/src/reports/routes.ts), portal público y revisión de reportes M4.
 - [`QA-REPORT.md`](../QA-REPORT.md), resultados reportados y límites de la ejecución QA del 14/10/2026.

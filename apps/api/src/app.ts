@@ -2,6 +2,7 @@ import express from "express";
 import { authRouter } from "./auth/routes.js";
 import { channelsRouter } from "./channels/routes.js";
 import { AppError } from "./errors/app-error.js";
+import { exportsRouter } from "./exports/routes.js";
 import { errorHandler } from "./http/error-handler.js";
 import { incidentsRouter } from "./incidents/routes.js";
 import { indicatorsRouter } from "./indicators/routes.js";
@@ -23,6 +24,7 @@ app.use("/api/incidents", incidentsRouter);
 app.use("/api/notifications", notificationsRouter);
 app.use("/api/reports", failureReportsRouter);
 app.use("/api/indicators", indicatorsRouter);
+app.use("/api/exports", exportsRouter);
 app.use("/api/public", publicRouter);
 
 app.get("/api/health", (_request, response) => {

@@ -21,17 +21,16 @@ const dayMillis = 24 * 60 * 60 * 1000;
 
 export type IndicatorQuery = { from: Date; to: Date; targetPercent: number };
 
-export async function computeIndicators(
-  query: IndicatorQuery,
-  database: IndicatorRepository = prisma,
-  now: Date = new Date(),
-) {
-  const period: TimeWindow = {
-    start: query.from,
-    end: new Date(Math.min(query.to.getTime(), now.getTime())),
-  };
+export function clampPeriod(from: Date, to: Date, now: Date): TimeWindow {
+  return { start: from, end: new Date(Math.min(to.getTime(), now.getTime())) };
+}
 
-  const [channels, statusBefore, transitions, incidents, notifications, paymentDates] = await Promise.all([
+/** Canales con su estado al inicio del periodo y sus transiciones dentro de él. */
+export async function loadStatusTimeline(
+  database: Pick<PrismaClient, "channel" | "channelStatusHistory">,
+  period: TimeWindow,
+) {
+  const [channels, statusBefore, transitions] = await Promise.all([
     database.channel.findMany({
       select: { id: true, code: true, name: true, currentStatus: true, createdAt: true },
       orderBy: [{ name: "asc" }, { code: "asc" }],
@@ -47,6 +46,43 @@ export async function computeIndicators(
       orderBy: { changedAt: "asc" },
       select: { channelId: true, changedAt: true, newStatus: true },
     }),
+  ]);
+  const initialStatus = new Map(statusBefore.map(({ channelId, newStatus }) => [channelId, newStatus]));
+  const transitionsByChannel = new Map<string, StatusTransition[]>();
+  for (const transition of transitions) {
+    const list = transitionsByChannel.get(transition.channelId) ?? [];
+    list.push(transition);
+    transitionsByChannel.set(transition.channelId, list);
+  }
+  return {
+    channels,
+    initialStatusOf: (channelId: string) => initialStatus.get(channelId) ?? ChannelStatus.UNKNOWN,
+    transitionsOf: (channelId: string) => transitionsByChannel.get(channelId) ?? [],
+  };
+}
+
+export async function loadPaymentDates(database: Pick<PrismaClient, "paymentDate">, period: TimeWindow) {
+  return database.paymentDate.findMany({
+    where: {
+      date: {
+        gte: new Date(period.start.getTime() - dayMillis),
+        lte: new Date(period.end.getTime() + dayMillis),
+      },
+    },
+    orderBy: [{ date: "asc" }, { group: "asc" }],
+    select: { date: true, group: true, description: true },
+  });
+}
+
+export async function computeIndicators(
+  query: IndicatorQuery,
+  database: IndicatorRepository = prisma,
+  now: Date = new Date(),
+) {
+  const period = clampPeriod(query.from, query.to, now);
+
+  const [timeline, incidents, notifications, paymentDates] = await Promise.all([
+    loadStatusTimeline(database, period),
     database.incident.findMany({
       where: { detectedAt: { gte: period.start, lte: period.end } },
       select: {
@@ -70,34 +106,18 @@ export async function computeIndicators(
       where: { createdAt: { gte: period.start, lte: period.end } },
       _count: { _all: true },
     }),
-    database.paymentDate.findMany({
-      where: {
-        date: {
-          gte: new Date(period.start.getTime() - dayMillis),
-          lte: new Date(period.end.getTime() + dayMillis),
-        },
-      },
-      orderBy: { date: "asc" },
-      select: { date: true, group: true, description: true },
-    }),
+    loadPaymentDates(database, period),
   ]);
 
   const paymentWindows = paymentDayWindows(paymentDates.map(({ date }) => date), period);
-  const initialStatus = new Map(statusBefore.map(({ channelId, newStatus }) => [channelId, newStatus]));
-  const transitionsByChannel = new Map<string, StatusTransition[]>();
-  for (const transition of transitions) {
-    const list = transitionsByChannel.get(transition.channelId) ?? [];
-    list.push(transition);
-    transitionsByChannel.set(transition.channelId, list);
-  }
 
   const startOf = (incident: (typeof incidents)[number]) => incident.startedAt ?? incident.detectedAt;
   const totals = emptyDurations();
   const paymentTotals = emptyDurations();
 
-  const channelRows = channels.map((channel) => {
-    const channelTransitions = transitionsByChannel.get(channel.id) ?? [];
-    const start = initialStatus.get(channel.id) ?? ChannelStatus.UNKNOWN;
+  const channelRows = timeline.channels.map((channel) => {
+    const channelTransitions = timeline.transitionsOf(channel.id);
+    const start = timeline.initialStatusOf(channel.id);
     const durations = statusDurations(start, channelTransitions, period);
     const paymentDurations = emptyDurations();
     for (const window of paymentWindows) {

@@ -2,7 +2,7 @@
 
 Monorepo inicial de SIMONA-BN, un proyecto universitario de monitoreo de disponibilidad con canales y servicios **simulados**. No se conecta a sistemas internos del Banco de la Nación, no hace pagos y no procesa transacciones reales.
 
-La etapa actual incluye autenticación con sesiones persistidas, roles, catálogo, M1 (verificaciones periódicas/manuales persistidas), M2 (apertura automática y gestión auditable de incidencias) M3 (alertas por correo de caída y restablecimiento con registro de envíos y reintentos) M4 (portal público de estado con reporte ciudadano de fallas) y M5 (panel de indicadores con importación CSV del cronograma de pagos). Los reportes descargables PDF/CSV, la gestión de usuarios y el respaldo aún no están implementados.
+La etapa actual incluye autenticación con sesiones persistidas, roles, catálogo, M1 (verificaciones periódicas/manuales persistidas), M2 (apertura automática y gestión auditable de incidencias) M3 (alertas por correo de caída y restablecimiento con registro de envíos y reintentos) M4 (portal público de estado con reporte ciudadano de fallas) M5 (panel de indicadores con importación CSV del cronograma de pagos) y reportes descargables en CSV y PDF. La gestión de usuarios y roles, la bitácora general de auditoría y el respaldo aún no están implementados.
 
 ## Requisitos
 
@@ -226,6 +226,23 @@ ADMIN u OPERATOR importan un CSV con cabecera `fecha,grupo,descripcion` (fecha `
 Endpoints: `GET /api/indicators?from=<ISO>&to=<ISO>&target=99` (periodo máximo de un año), `GET /api/payment-schedule?from=AAAA-MM-DD&to=AAAA-MM-DD`, `POST /api/payment-schedule/import` con `{ "fileName": "x.csv", "content": "..." }` (hasta 200 KB) y `DELETE /api/payment-schedule/:id`.
 
 La migración M5 también agrega restricciones a las incidencias: el inicio no puede ser posterior a la detección, y una incidencia resuelta o cerrada debe tener fecha de resolución (y de cierre).
+
+## Reportes descargables (CSV y PDF)
+
+Cualquier usuario con sesión puede descargar, para el periodo y la meta elegidos en **Indicadores**:
+
+| Reporte | Contenido |
+|---|---|
+| Disponibilidad por canal | disponibilidad y minutos operativo/caído/mantenimiento/sin verificar de cada canal en el periodo |
+| Disponibilidad diaria por canal | lo mismo por día de Lima, marcando los días de pago |
+| Excepción | canal y día de pago con disponibilidad bajo la meta, con la diferencia en puntos porcentuales |
+| Incidencias | inicio real, detección, recuperación, resolución y cierre, duración de la caída, día de pago, motivo, reportes ciudadanos y alertas enviadas |
+
+En **Incidencias**, los botones CSV/PDF exportan con los filtros aplicados (canal, estado, severidad y fechas; sin fechas, los últimos 365 días).
+
+Los CSV son UTF-8 con BOM, separador coma y punto decimal, para que Excel muestre bien las tildes; el texto que empieza con `=`, `+`, `-` o `@` se antepone con `'` para evitar la inyección de fórmulas. Los PDF (A4 horizontal, generados con PDFKit) incluyen periodo, usuario y hora de generación, resumen, tabla paginada con cabecera repetida, notas de cálculo y la advertencia de datos simulados.
+
+Endpoints: `GET /api/exports/{availability|incidents|exceptions}.{csv|pdf}?from=<ISO>&to=<ISO>`; `availability` acepta `target`, `channelId` y `granularity=channel|day`; `exceptions` acepta `target`; `incidents` acepta `channelId`, `status` y `severity`. Periodo máximo: un año.
 
 ## Pruebas, tipos y compilaciones
 

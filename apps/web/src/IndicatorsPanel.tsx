@@ -132,6 +132,24 @@ function AvailabilityMeter({ value, target }: { value: number | null; target: nu
   );
 }
 
+const reportDownloads = [
+  { report: "availability", extra: {}, label: "Disponibilidad por canal" },
+  { report: "availability", extra: { granularity: "day" }, label: "Disponibilidad diaria por canal" },
+  { report: "exceptions", extra: {}, label: "Excepción: bajo la meta en fechas de pago" },
+  { report: "incidents", extra: {}, label: "Incidencias del periodo" },
+] as const;
+
+function downloadUrl(
+  report: (typeof reportDownloads)[number]["report"],
+  extra: Record<string, string>,
+  format: "csv" | "pdf",
+  indicators: Indicators,
+) {
+  const params = new URLSearchParams({ from: indicators.period.from, to: indicators.period.to, ...extra });
+  if (report !== "incidents") params.set("target", String(indicators.targetPercent));
+  return `/api/exports/${report}.${format}?${params.toString()}`;
+}
+
 function BelowTarget({ show }: { show: boolean }) {
   return show ? <span className="below-target"><span aria-hidden="true">⚠</span> Bajo la meta</span> : null;
 }
@@ -331,6 +349,19 @@ export function IndicatorsPanel({
                 <small>{tile.formula}</small>
               </article>
             ))}
+          </div>
+
+          <div className="report-downloads">
+            <h3>Descargar reportes del periodo</h3>
+            <ul>
+              {reportDownloads.map((download) => (
+                <li key={download.label}>
+                  <span>{download.label}</span>
+                  <a className="toggle-button" href={downloadUrl(download.report, download.extra, "csv", indicators)} download>CSV</a>
+                  <a className="toggle-button" href={downloadUrl(download.report, download.extra, "pdf", indicators)} download>PDF</a>
+                </li>
+              ))}
+            </ul>
           </div>
 
           <div className={`indicator-exceptions ${indicators.exceptions.length > 0 ? "has-exceptions" : ""}`}>

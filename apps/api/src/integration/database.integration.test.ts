@@ -783,6 +783,54 @@ suite("persistencia e integración PostgreSQL", () => {
       notifications: { sent: 1, failed: 0, deliveryRatePercent: 100 },
     });
     expect(paymentDates).toEqual([{ date: "2025-03-02", group: scheduleGroup, description: "Pago corregido" }]);
+
+    const period = { from: "2025-03-01T05:00:00.000Z", to: "2025-03-03T05:00:00.000Z" };
+    const daily = await request(app)
+      .get("/api/exports/availability.csv")
+      .query({ ...period, target: "99", granularity: "day", channelId: channel.id })
+      .set("Cookie", viewerCookie);
+    expect(daily.status).toBe(200);
+    expect(daily.headers["content-type"]).toContain("text/csv");
+    expect(daily.headers["content-disposition"]).toBe(
+      "attachment; filename=\"simona-disponibilidad-diaria-2025-03-01_2025-03-03.csv\"",
+    );
+    expect(daily.text.split("\r\n").filter(Boolean)).toEqual([
+      "\uFEFFCanal,Código,Fecha,Día de pago,Disponibilidad (%),Operativo (min),Caído (min),Mantenimiento (min),Sin verificar (min),Bajo la meta",
+      `Canal de indicadores,${indicatorChannelCode},2025-03-01,No,100,1440,0,0,0,No`,
+      `Canal de indicadores,${indicatorChannelCode},2025-03-02,Sí,91.667,1320,120,0,0,Sí`,
+    ]);
+
+    const exceptionCsv = await request(app)
+      .get("/api/exports/exceptions.csv")
+      .query({ ...period, target: "99" })
+      .set("Cookie", viewerCookie);
+    expect(exceptionCsv.text).toContain(
+      `Canal de indicadores,${indicatorChannelCode},2025-03-02,${scheduleGroup},91.667,99,-7.333,120`,
+    );
+
+    const incidentCsv = await request(app)
+      .get("/api/exports/incidents.csv")
+      .query({ ...period, channelId: channel.id })
+      .set("Cookie", viewerCookie);
+    const incidentLines = incidentCsv.text.split("\r\n").filter(Boolean);
+    expect(incidentLines).toHaveLength(2);
+    expect(incidentLines[1]).toBe(
+      `${incident.id.slice(0, 8)},Canal de indicadores,Resuelta,Alta,2025-03-02 04:58:00,2025-03-02 05:00:00,2025-03-02 07:00:00,2025-03-02 07:30:00,,122,Sí,Canal no disponible,Prueba de indicadores,0,1`,
+    );
+
+    const pdf = await request(app)
+      .get("/api/exports/exceptions.pdf")
+      .query({ ...period, target: "99" })
+      .set("Cookie", viewerCookie)
+      .buffer(true)
+      .parse((response, callback) => {
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.on("end", () => callback(null, Buffer.concat(chunks)));
+      });
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers["content-type"]).toBe("application/pdf");
+    expect((pdf.body as Buffer).subarray(0, 5).toString()).toBe("%PDF-");
   });
 
   it("rejects invalid simulated targets and reports missing channels", async () => {

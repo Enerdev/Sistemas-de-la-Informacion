@@ -104,3 +104,22 @@ export function isWithinWindows(instant: Date, windows: TimeWindow[]): boolean {
 export function limaDateKey(instant: Date): string {
   return new Date(instant.getTime() - limaOffsetMillis).toISOString().slice(0, 10);
 }
+
+/** Días calendario de Lima que cubren el periodo, recortados a sus extremos. */
+export function limaDayWindows(period: TimeWindow): Array<TimeWindow & { day: string }> {
+  const windows: Array<TimeWindow & { day: string }> = [];
+  const firstDay = Date.parse(`${limaDateKey(period.start)}T00:00:00.000Z`) + limaOffsetMillis;
+  for (let dayStart = firstDay; dayStart < period.end.getTime(); dayStart += dayMillis) {
+    const start = Math.max(dayStart, period.start.getTime());
+    const end = Math.min(dayStart + dayMillis, period.end.getTime());
+    if (end > start) {
+      windows.push({ day: limaDateKey(new Date(dayStart)), start: new Date(start), end: new Date(end) });
+    }
+  }
+  return windows;
+}
+
+/** Fecha y hora de Lima en formato AAAA-MM-DD HH:mm:ss, para reportes. */
+export function limaDateTime(instant: Date): string {
+  return new Date(instant.getTime() - limaOffsetMillis).toISOString().slice(0, 19).replace("T", " ");
+}
