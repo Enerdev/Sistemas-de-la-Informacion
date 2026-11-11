@@ -1,6 +1,10 @@
 import "dotenv/config";
 import { z } from "zod";
 
+// Una variable definida pero vacía (por ejemplo, dejada en blanco en el panel del proveedor) cuenta como no definida.
+const optional = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((value) => (value === "" ? undefined : value), schema.optional());
+
 const environmentSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
@@ -11,17 +15,17 @@ const environmentSchema = z.object({
       message: "DATABASE_URL debe usar el protocolo postgresql:// o postgres://",
     }),
   SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(12),
-  SEED_ADMIN_EMAIL: z.string().email().optional(),
-  SEED_ADMIN_PASSWORD: z.string().min(12).max(128).optional(),
+  SEED_ADMIN_EMAIL: optional(z.string().email()),
+  SEED_ADMIN_PASSWORD: optional(z.string().min(12).max(128)),
   MONITORING_DRIVER: z.enum(["simulated", "http"]).default("simulated"),
   MONITORING_HTTP_ALLOWED_HOSTS: z.string().default(""),
   NOTIFICATIONS_DRIVER: z.enum(["json", "ethereal", "smtp"]).default("json"),
   NOTIFICATIONS_FROM: z.string().trim().min(3).max(200).default("SIMONA-BN <alertas@simona.test>"),
-  SMTP_HOST: z.string().trim().optional(),
+  SMTP_HOST: optional(z.string().trim()),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
   SMTP_SECURE: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASS: z.string().optional(),
+  SMTP_USER: optional(z.string()),
+  SMTP_PASS: optional(z.string()),
 });
 
 export type AppConfig = Omit<z.infer<typeof environmentSchema>, "MONITORING_HTTP_ALLOWED_HOSTS"> & {

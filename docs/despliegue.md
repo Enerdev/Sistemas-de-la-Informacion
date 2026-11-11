@@ -39,6 +39,16 @@ En producción la API sirve la web compilada (`SERVE_WEB=true`), agrega cabecera
 
 Cada `git push` a `main` vuelve a compilar y desplegar (`autoDeploy`). Los reinicios no borran datos ni vuelven a cargar la demostración.
 
+## Si el despliegue falla o no hay ADMIN
+
+Si en **Logs** aparece `Aviso: no existe ningún ADMIN activo` (o, en versiones anteriores, `No hay un ADMIN activo` seguido de `Exited with status 1`), faltan las variables secretas:
+
+1. Render → servicio `simona-bn` → **Environment**.
+2. Agrega `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` (12+ caracteres) y `SEED_DEMO_PASSWORD` (12+ caracteres). Guarda con **Save, rebuild, and deploy**.
+3. En el nuevo arranque se crean el ADMIN y las cuentas demo y se carga la demostración (la base aún no tiene verificaciones).
+
+Una variable dejada en blanco cuenta como no definida.
+
 ## Limitaciones del plan gratuito
 
 | Limitación | Efecto | Qué hacer |

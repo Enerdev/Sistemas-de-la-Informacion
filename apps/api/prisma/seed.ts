@@ -71,6 +71,12 @@ async function seed(): Promise<void> {
     });
   }
 
+  if ((await prisma.user.count({ where: { role: UserRole.ADMIN, active: true } })) === 0) {
+    console.warn(
+      "Aviso: no existe ningún ADMIN activo. Define SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD (12+ caracteres)"
+      + " en las variables de entorno y vuelve a desplegar para crear el primer administrador.",
+    );
+  }
   console.info("Seed completado: canales simulados y destinatario de demostración asegurados; no se mostraron credenciales.");
 }
 

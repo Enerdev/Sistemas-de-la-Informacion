@@ -45,7 +45,13 @@ async function main(): Promise<void> {
     orderBy: { createdAt: "asc" },
   });
   if (!admin) {
-    throw new Error("No hay un ADMIN activo. Ejecuta primero npm run db:seed con SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD.");
+    const message = "No hay un ADMIN activo. Ejecuta primero npm run db:seed con SEED_ADMIN_EMAIL y SEED_ADMIN_PASSWORD.";
+    if (args.has("--if-empty")) {
+      // En el arranque automático no se bloquea la API: la demo se carga en el siguiente despliegue.
+      console.warn(`${message} No se cargó la demostración; la API arranca igual.`);
+      return;
+    }
+    throw new Error(message);
   }
 
   // Cuentas de demostración opcionales, con la contraseña local SEED_DEMO_PASSWORD.

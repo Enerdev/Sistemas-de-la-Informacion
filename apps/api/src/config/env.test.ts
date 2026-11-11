@@ -54,4 +54,16 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...base, SMTP_USER: "usuario" }))
       .toThrow(/SMTP_USER y SMTP_PASS deben configurarse juntos/);
   });
+
+  it("trata como no definidas las variables opcionales vacías", () => {
+    const config = loadConfig({
+      DATABASE_URL: "postgresql://simona:local-only@localhost:5432/simona_bn",
+      SEED_ADMIN_EMAIL: "",
+      SEED_ADMIN_PASSWORD: "",
+      SMTP_USER: "",
+      SMTP_PASS: "",
+    });
+    expect(config.SEED_ADMIN_EMAIL).toBeUndefined();
+    expect(config.SEED_ADMIN_PASSWORD).toBeUndefined();
+  });
 });
