@@ -11,6 +11,7 @@ import { demoCheckIntervalMinutes, demoRecipients, demoSettings, generateDemoDat
  * reportes ciudadanos y cronograma) por una demostración simulada de 6 semanas.
  * Conserva usuarios, sesiones y la bitácora de auditoría (que es de solo inserción).
  * Uso: npm run db:seed:demo -- --reset
+ * Con --if-empty no hace nada si ya existen verificaciones (para el arranque automático del despliegue).
  */
 const batchSize = 2000;
 
@@ -28,6 +29,11 @@ async function main(): Promise<void> {
   }
   if (config.NODE_ENV === "production" && !args.has("--allow-production")) {
     throw new Error("NODE_ENV=production: agrega --allow-production solo si esta base es una demostración.");
+  }
+
+  if (args.has("--if-empty") && (await prisma.channelCheck.count()) > 0) {
+    console.info("La base ya tiene verificaciones: no se cargó la demostración (--if-empty).");
+    return;
   }
 
   const admin = await prisma.user.findFirst({

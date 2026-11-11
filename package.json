@@ -20,11 +20,15 @@
     "db:backup": "bash scripts/db/backup.sh",
     "db:backup:verify": "bash scripts/db/verify-backup.sh",
     "db:restore": "bash scripts/db/restore.sh",
-    "db:seed:demo": "npm run db:seed:demo --workspace @simona-bn/api --"
+    "db:seed:demo": "npm run db:seed:demo --workspace @simona-bn/api --",
+    "start": "bash scripts/render-start.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.12.0",
     "typescript-eslint": "^8.71.2"
+  },
+  "engines": {
+    "node": ">=20.19"
   }
 }

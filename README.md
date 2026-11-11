@@ -303,6 +303,12 @@ Para un respaldo diario a las 02:00 en el servidor (cron del usuario que ejecuta
 
 Los respaldos contienen hashes de contraseñas y datos de contacto: guárdalos fuera del servidor y con acceso restringido.
 
+## Despliegue
+
+El proyecto se despliega en Render con el Blueprint [`render.yaml`](render.yaml): un servicio web gratuito (API que también sirve la web compilada) y PostgreSQL, con HTTPS automático. El primer arranque aplica migraciones, crea el primer ADMIN (con cambio de contraseña obligatorio) y carga la demostración; los reinicios no la repiten. Pasos, limitaciones del plan gratuito (suspensión por inactividad, base que vence a los 30 días, SMTP bloqueado) y operación en [docs/despliegue.md](docs/despliegue.md).
+
+Para probar el modo producción localmente: `npm run build` y luego `NODE_ENV=production SERVE_WEB=true PORT=3100 npm start`.
+
 ## Pruebas, tipos y compilaciones
 
 ```bash

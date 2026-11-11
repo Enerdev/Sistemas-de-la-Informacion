@@ -1,0 +1,48 @@
+# Blueprint de Render para SIMONA-BN: un servicio web (API + web compilada) y PostgreSQL.
+# Uso: en Render, New > Blueprint, elegir este repositorio. Ver docs/despliegue.md.
+databases:
+  - name: simona-bn-db
+    plan: free
+    region: virginia
+    databaseName: simona_bn
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: simona-bn
+    runtime: node
+    plan: free
+    region: virginia
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: simona-bn-db
+          property: connectionString
+      - key: SERVE_WEB
+        value: "true"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: SESSION_TTL_HOURS
+        value: "12"
+      - key: MONITORING_DRIVER
+        value: simulated
+      # El plan gratis de Render bloquea SMTP: las alertas se generan y registran, pero no salen.
+      - key: NOTIFICATIONS_DRIVER
+        value: json
+      - key: DEMO_SEED_IF_EMPTY
+        value: "true"
+      # Secretos: Render los pide al crear el Blueprint; no se guardan en el repositorio.
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_DEMO_PASSWORD
+        sync: false

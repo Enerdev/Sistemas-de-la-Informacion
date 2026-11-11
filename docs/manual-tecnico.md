@@ -348,7 +348,8 @@ Para una nueva entrega, repita los comandos en el entorno destino y adjunte sali
 - Mantener el modo `simulated`. No configurar dominios del BN ni endpoints no autorizados en allowlist.
 - La API/scheduler está diseñada para una instancia en la demostración. Varias instancias no comparten lock de scheduler.
 - Respaldo: `npm run db:backup` (pg_dump + SHA-256 + manifiesto de filas, retención 14), `npm run db:backup:verify` (restauración en base temporal y comparación) y `npm run db:restore`. El respaldo diario se programa con cron (ver README). Verificado el 11/11/2026 sobre `simona_bn_dev`: 15 tablas y 48 filas coincidieron; un archivo alterado fue rechazado por la suma SHA-256.
-- No hay evidencia de despliegue, auditoría de seguridad externa, pruebas de carga o SLA.
+- Despliegue: Blueprint de Render (`render.yaml`) con HTTPS, cabeceras de seguridad (HSTS, CSP, `X-Frame-Options`, `nosniff`), `TRUST_PROXY` y cookie `Secure`; procedimiento y verificación previa en [despliegue.md](./despliegue.md). En producción el seed solo crea el primer ADMIN, con cambio de contraseña obligatorio.
+- No hay evidencia de auditoría de seguridad externa, pruebas de carga o SLA.
 
 ## 11. Referencias técnicas
 

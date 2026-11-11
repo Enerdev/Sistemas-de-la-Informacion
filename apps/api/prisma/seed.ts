@@ -33,9 +33,10 @@ const channels = [
 
 async function seed(): Promise<void> {
   const config = loadConfig();
-  if (config.NODE_ENV === "production" && config.SEED_ADMIN_EMAIL) {
-    throw new Error("No se permite crear una cuenta administradora mediante seed en producción");
-  }
+  // En producción el seed solo puede crear el PRIMER administrador (arranque inicial del despliegue)
+  // y lo obliga a cambiar la contraseña al entrar; nunca modifica cuentas existentes.
+  const production = config.NODE_ENV === "production";
+  const bootstrapAdmin = !production || (await prisma.user.count({ where: { role: UserRole.ADMIN } })) === 0;
 
   for (const channel of channels) {
     await prisma.channel.upsert({
@@ -55,7 +56,7 @@ async function seed(): Promise<void> {
     update: {},
   });
 
-  if (config.SEED_ADMIN_EMAIL && config.SEED_ADMIN_PASSWORD) {
+  if (config.SEED_ADMIN_EMAIL && config.SEED_ADMIN_PASSWORD && bootstrapAdmin) {
     const passwordResult = seedAdminPasswordSchema.safeParse(config.SEED_ADMIN_PASSWORD);
     if (!passwordResult.success) {
       throw new Error("SEED_ADMIN_PASSWORD no cumple la política de longitud");
@@ -65,7 +66,7 @@ async function seed(): Promise<void> {
     const passwordHash = await hashPassword(passwordResult.data);
     await prisma.user.upsert({
       where: { email },
-      create: { email, passwordHash, role: UserRole.ADMIN },
+      create: { email, passwordHash, role: UserRole.ADMIN, mustChangePassword: production },
       update: {},
     });
   }
