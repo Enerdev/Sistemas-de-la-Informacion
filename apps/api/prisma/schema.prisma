@@ -344,6 +344,49 @@ model PaymentDate {
   @@map("payment_dates")
 }
 
+enum OutageRecordKind {
+  FAILURE
+  MAINTENANCE
+}
+
+enum PaymentOverlap {
+  YES
+  NO
+  UNKNOWN
+}
+
+enum SourceConfidence {
+  OFFICIAL
+  PRESS_WITH_STATEMENT
+  PRESS
+  UNVERIFIED
+}
+
+// Antecedentes reales de caídas del BN tomados de fuentes públicas. No los midió SIMONA-BN:
+// no tienen duración confiable, por eso no se mezclan con incidencias ni con la disponibilidad.
+model PublicOutageRecord {
+  id                String           @id @default(uuid()) @db.Uuid
+  code              String           @unique @db.VarChar(16)
+  kind              OutageRecordKind
+  startDate         DateTime         @db.Date
+  endDate           DateTime         @db.Date
+  startTime         String?          @db.VarChar(5)
+  endTime           String?          @db.VarChar(5)
+  channels          String           @db.VarChar(300)
+  symptoms          String           @db.VarChar(500)
+  paymentOverlap    PaymentOverlap
+  // null = comunicado por confirmar.
+  officialStatement Boolean?
+  confidence        SourceConfidence
+  note              String?          @db.VarChar(500)
+  sourceUrl         String           @db.VarChar(500)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([startDate])
+  @@map("public_outage_records")
+}
+
 // Bitácora de solo inserción: un disparador en PostgreSQL impide modificar o borrar filas.
 // No tiene clave foránea a usuarios para que borrar un usuario no altere el registro histórico.
 model AuditLog {

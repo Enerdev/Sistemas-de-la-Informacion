@@ -432,3 +432,6 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
+.outage-records .indicator-table td { vertical-align: top; }
+.outage-note { display: block; margin-top: 3px; }
+.outage-filter { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 10px; color: #3f524b; font-size: 11px; }

@@ -21,6 +21,7 @@
     "db:backup:verify": "bash scripts/db/verify-backup.sh",
     "db:restore": "bash scripts/db/restore.sh",
     "db:seed:demo": "npm run db:seed:demo --workspace @simona-bn/api --",
+    "db:seed:outages": "npm run db:seed:outages --workspace @simona-bn/api --",
     "start": "bash scripts/render-start.sh"
   },
   "devDependencies": {

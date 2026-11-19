@@ -52,11 +52,11 @@ export function parseCsv(text: string): string[][] {
   return rows;
 }
 
-function normalizeHeader(value: string): string {
+export function normalizeHeader(value: string): string {
   return value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
-function parseCalendarDate(value: string): string | null {
+export function parseCalendarDate(value: string): string | null {
   const trimmed = value.trim();
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
   const local = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(trimmed);

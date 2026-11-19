@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiRequest } from "./api";
+import { OutageRecordsSection } from "./OutageRecords";
 
 type ChannelStatus = "UNKNOWN" | "AVAILABLE" | "DEGRADED" | "UNAVAILABLE" | "MAINTENANCE";
 
@@ -429,6 +430,8 @@ export function IndicatorsPanel({
           </p>
         </>
       )}
+
+      <OutageRecordsSection setNotice={setNotice} />
 
       <div className="recipient-section schedule-section">
         <h3>Cronograma de pagos</h3>
